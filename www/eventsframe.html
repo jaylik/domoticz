@@ -206,6 +206,11 @@
 					var valueA = $(timeBlock).children("title[name='SunriseSunset']")[0];
 					compareString = 'timeofday '+locOperand+' @'+$(valueA).text(); 
 				}
+				else if (timeBlock.attr("type").indexOf("uservariables") >= 0) {
+					var titleA = $(timeBlock).find("title[name='Variable']")[0];
+					var valueA = "variable["+$(titleA).text()+"]";         
+					compareString = 'timeofday '+locOperand+' tonumber(string.sub('+valueA+',1,2))*60+tonumber(string.sub('+valueA+',4,5))';
+				}
 				return compareString;	
 		}
 		
@@ -330,12 +335,7 @@
 	        	var valueC = $(this).find("value[name='C']")[0];
 	        	var titleC = $(valueC).find("title")[0];
 	        	var blockA = $(valueA).children("block:first");
-	        	/*if ((blockA.attr("type")=="scenevariables")) {
-	        		var setString = "commandArray[Scene:"+$(titleA).text()+"]";
-	        	}
-	        	else { */
 		        var setString = "commandArray["+$(titleA).text()+"]";
-	        	//}
 	        	var valueB = $(this).find("value[name='B']")[0];
 	        	var titleB = $(valueB).find("title")[0];
 	        	var blockB = $(valueB).children("block:first");
@@ -379,12 +379,7 @@
 	        	var valueC = $(this).find("value[name='C']")[0];
 	        	var titleC = $(valueC).find("title")[0];
 	        	var blockA = $(valueA).children("block:first");
-	        	/*if ((blockA.attr("type")=="scenevariables")) {
-	        		var setString = "commandArray[Scene:"+$(titleA).text()+"]";
-	        	}
-	        	else { */
 		        var setString = "commandArray["+$(titleA).text()+"]";
-	        	//}
 	        	var valueB = $(this).find("value[name='B']")[0];
 	        	var titleB = $(valueB).find("title")[0];
 	        	var blockB = $(valueB).children("block:first");
@@ -406,12 +401,7 @@
 	        	var valueC = $(this).find("value[name='C']")[0];
 	        	var titleC = $(valueC).find("title")[0];
 	        	var blockA = $(valueA).children("block:first");
-	        	/* if ((blockA.attr("type")=="scenevariables")) {
-	        		var setString = "commandArray[Scene:"+$(titleA).text()+"]";
-	        	}
-	        	else { */
 		        var setString = "commandArray["+$(titleA).text()+"]";
-	        	//}
 	        	var blockB = $(valueB).children("block:first");
 		        if ((blockB.attr("type")=="logic_states") && ($(titleB).attr("name") == "State")) {	        	
 	        		setString += '="'+$(titleB).text()+' RANDOM '+ $(titleC).text()+'"'; 
@@ -504,6 +494,14 @@
 	        	setString += '="'+$(titleB).text()+'"'; 
 	        	setArray.push(setString);
 		    }		    
+		    else if ($(this).attr('type') == 'cameravariables') {
+			   	var titleA = $(this).find("title[name='Camera']")[0];
+			   	var titleB = $(this).find("title[name='Subject']")[0];
+			   	var titleC = $(this).find("title[name='NUM']")[0];
+	        	var setString = "commandArray[SendCamera:"+$(titleA).text()+"]";
+	        	setString += '="'+ $(titleB).text()+'" AFTER ' + $(titleC).text().replace(/\,/g, ' '); 
+	        	setArray.push(setString);
+		    }		    
 		  });
 		  var conditionArray = [];
 		  conditionArray.push(boolString);
@@ -517,6 +515,9 @@
 			  	dataType: 'json',
 			  	success: function(data) {
 				  	if (typeof data.result != 'undefined') {
+						if (data.editortheme != 'undefined') {
+							editor.setTheme(data.editortheme);
+						}
 				  		if (data.status=="OK") {
 							$("#eventName").val(data.result[0].name);
 							$("#interpreter").val(data.result[0].interpreter).prop('disabled', true);
@@ -540,6 +541,7 @@
 								editor.getSession().setMode("ace/mode/" + data.result[0].interpreter.toLowerCase());
 								editor.setValue(data.result[0].xmlstatement);
 								editor.gotoLine(1);
+								editor.scrollToLine(1, true, true, function () {});
 								ResizeAceWindow();
 							}
 							$('#btnSave').attr("class", "btnstyle3");
@@ -672,6 +674,7 @@
 			else {doSave = true;}
       		if (doSave) {
 				var logicArray;
+				var editorTheme = "";
 				if ($("#interpreter").val() == "Blockly") {
 					var xml = Blockly.Xml.workspaceToDom( Blockly.mainWorkspace );
 					var blockXml  = Blockly.Xml.domToText( xml );
@@ -689,13 +692,14 @@
 				}
 				else {
 					logicArray = "";
+					editorTheme = "&editortheme="+encodeURIComponent(editor.getTheme());
 					blockXml = editor.getValue();
 				}
 
 				var isActive = 0;
 				if ($('#eventActive').is(':checked')) {isActive = 1};
 				$.ajax({
-					url : "json.htm?type=events&param=create&name="+encodeURIComponent(eventName)+"&interpreter="+encodeURIComponent($("#interpreter").val())+"&eventtype="+encodeURIComponent($("#eventType").val())+"&xml="+encodeURIComponent(blockXml)+"&logicarray="+encodeURIComponent(logicArray)+"&eventid="+id+"&eventstatus="+isActive, 
+					url : "json.htm?type=events&param=create&name="+encodeURIComponent(eventName)+"&interpreter="+encodeURIComponent($("#interpreter").val())+"&eventtype="+encodeURIComponent($("#eventType").val())+"&xml="+encodeURIComponent(blockXml)+"&logicarray="+encodeURIComponent(logicArray)+"&eventid="+id+"&eventstatus="+isActive+editorTheme, 
 					async: false, 
 					dataType: 'json',
 					success: function(data) {
@@ -917,6 +921,9 @@
 		   	<category name="Scenes/groups">
 			   	<block type="scenevariables"></block>
 			   	<block type="groupvariables"></block>
+		   	</category>
+		   	<category name="Cameras">
+			   	<block type="cameravariables"></block>
 		   	</category>
 		</category>
     </xml>

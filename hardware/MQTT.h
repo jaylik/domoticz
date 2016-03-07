@@ -1,7 +1,15 @@
 #pragma once
 
 #include "MySensorsBase.h"
+#ifdef BUILTIN_MQTT
 #include "../MQTT/mosquittopp.h"
+#else
+#ifdef WIN32
+#include "../MQTT/mosquittopp.h"
+#else
+#include <mosquittopp.h>
+#endif
+#endif
 
 class MQTT : public MySensorsBase, mosqpp::mosquittopp
 {
@@ -19,7 +27,6 @@ public:
 	void SendMessage(const std::string &Topic, const std::string &Message);
 
 	bool m_bDoReconnect;
-	bool m_disc_finished;
 	bool m_IsConnected;
 public:
 	// signals
@@ -47,8 +54,8 @@ protected:
 	boost::signals2::connection m_sConnection;
 	enum _ePublishTopics {
 		PT_none 	  = 0x00,
-		PT_out  	  = 0x01, 			// publish on domoticz/out
-		PT_floor_room = PT_out << 1 	// publish on domoticz/<floor>/<room>
+		PT_out  	  = 0x01, 	// publish on domoticz/out
+		PT_floor_room = 0x02 	// publish on domoticz/<floor>/<room>
 	};
 	_ePublishTopics m_publish_topics;
 };

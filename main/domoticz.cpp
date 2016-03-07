@@ -73,10 +73,13 @@ const char *szHelp=
 	"Usage: Domoticz -www port -verbose x\n"
 	"\t-www port (for example -www 8080, or -www 0 to disable http)\n"
 	"\t-wwwbind address (for example -wwwbind 0.0.0.0 or -wwwbind 192.168.0.20)\n"
-#ifdef NS_ENABLE_SSL
+#ifdef WWW_ENABLE_SSL
 	"\t-sslwww port (for example -sslwww 443, or -sslwww 0 to disable https)\n"
 	"\t-sslcert file_path (for example /opt/domoticz/server_cert.pem)\n"
-	"\t-sslpass passphrase for private key in certificate\n"
+	"\t-sslpass passphrase (to access to server private key in certificate)\n"
+	"\t-sslmethod method (for SSL method)\n"
+	"\t-ssloptions options (for SSL options, default is 'default_workarounds,no_sslv2,single_dh_use')\n"
+	"\t-ssldhparam file_path (for SSL DH parameters)\n"
 #endif
 #if defined WIN32
 	"\t-wwwroot file_path (for example D:\\www)\n"
@@ -88,7 +91,7 @@ const char *szHelp=
 	"\t-userdata file_path (for example /opt/domoticz)\n"
 #endif
 	"\t-webroot additional web root, useful with proxy servers (for example domoticz)\n"
-	"\t-verbose x (where x=0 is none, x=1 is debug)\n"
+	"\t-verbose x (where x=0 is none, x=1 is all important, x=2 is debug)\n"
 	"\t-startupdelay seconds (default=0)\n"
 	"\t-nowwwpwd (in case you forgot the web server username/password)\n"
 	"\t-nocache (do not return appcache, use only when developing the web pages)\n"
@@ -268,7 +271,12 @@ void daemonize(const char *rundir, const char *pidfile)
 	sprintf(str, "%d\n", getpid());
 
 	/* write pid to lockfile */
-	write(pidFilehandle, str, strlen(str));
+	int twrite=write(pidFilehandle, str, strlen(str));
+	if (twrite != strlen(str))
+	{
+		syslog(LOG_INFO, "Could not write to lockfile %s, exiting", pidfile);
+		exit(EXIT_FAILURE);
+	}
 
 
 	/* Child continues */
@@ -299,13 +307,25 @@ void daemonize(const char *rundir, const char *pidfile)
 	i = open("/dev/null", O_RDWR);
 
 	/* STDOUT */
-	dup(i);
+	int dret = dup(i);
+	if (dret == -1)
+	{
+		_log.Log(LOG_ERROR, "Could not set STDOUT descriptor !");
+	}
 
 	/* STDERR */
-	dup(i);
+	dret = dup(i);
+	if (dret == -1)
+	{
+		_log.Log(LOG_ERROR, "Could not set STDERR descriptor !");
+	}
 
-	chdir(rundir); /* change running directory */
-} 
+	int cdret = chdir(rundir); /* change running directory */
+	if (cdret == -1)
+	{
+		_log.Log(LOG_ERROR, "Could not change running directory !");
+	}
+}
 #endif
 
 #if defined(_WIN32)
@@ -568,6 +588,7 @@ int main(int argc, char**argv)
 		sleep_seconds(DelaySeconds);
 	}
 
+	http::server::server_settings webserver_settings;
 	if (cmdLine.HasSwitch("-wwwbind"))
 	{
 		if (cmdLine.GetArgumentCount("-wwwbind") != 1)
@@ -575,8 +596,7 @@ int main(int argc, char**argv)
 			_log.Log(LOG_ERROR, "Please specify an address");
 			return 1;
 		}
-		std::string wwwbind = cmdLine.GetSafeArgument("-wwwbind", 0, "0.0.0.0");
-		m_mainworker.SetWebserverAddress(wwwbind);
+		webserver_settings.listening_address = cmdLine.GetSafeArgument("-wwwbind", 0, "0.0.0.0");
 	}
 
 	if (cmdLine.HasSwitch("-www"))
@@ -586,12 +606,13 @@ int main(int argc, char**argv)
 			_log.Log(LOG_ERROR, "Please specify a port");
 			return 1;
 		}
-		std::string wwwport = cmdLine.GetSafeArgument("-www", 0, "8080");
-		if (wwwport == "0")
-			wwwport.clear();//HTTP server disabled
-		m_mainworker.SetWebserverPort(wwwport);
+		std::string wwwport = cmdLine.GetSafeArgument("-www", 0, "");
+		webserver_settings.listening_port = wwwport;
 	}
-#ifdef NS_ENABLE_SSL
+
+	m_mainworker.SetWebserverSettings(webserver_settings);
+#ifdef WWW_ENABLE_SSL
+	http::server::ssl_server_settings secure_webserver_settings;
 	if (cmdLine.HasSwitch("-sslwww"))
 	{
 		if (cmdLine.GetArgumentCount("-sslwww") != 1)
@@ -599,31 +620,59 @@ int main(int argc, char**argv)
 			_log.Log(LOG_ERROR, "Please specify a port");
 			return 1;
 		}
-		std::string wwwport = cmdLine.GetSafeArgument("-sslwww", 0, "443");
-		if (wwwport == "0")
-			wwwport.clear();//HTTPS server disabled
-		m_mainworker.SetSecureWebserverPort(wwwport);
+		std::string wwwport = cmdLine.GetSafeArgument("-sslwww", 0, "");
+		secure_webserver_settings.listening_port = wwwport;
+	}
+	if (!webserver_settings.listening_address.empty()) {
+		// Secure listening address has to be equal
+		secure_webserver_settings.listening_address = webserver_settings.listening_address;
 	}
 	if (cmdLine.HasSwitch("-sslcert"))
 	{
 		if (cmdLine.GetArgumentCount("-sslcert") != 1)
 		{
-			_log.Log(LOG_ERROR, "Please specify the file path");
+			_log.Log(LOG_ERROR, "Please specify a file path for your server certificate file");
 			return 1;
 		}
-		std::string ca_cert = cmdLine.GetSafeArgument("-sslcert", 0, "./server_cert.pem");
-		m_mainworker.SetSecureWebserverCert(ca_cert);
+		secure_webserver_settings.cert_file_path = cmdLine.GetSafeArgument("-sslcert", 0, "");
 	}
 	if (cmdLine.HasSwitch("-sslpass"))
 	{
 		if (cmdLine.GetArgumentCount("-sslpass") != 1)
 		{
-			_log.Log(LOG_ERROR, "Please specify a passphrase for your certificate file");
+			_log.Log(LOG_ERROR, "Please specify a passphrase to access to your server private key in certificate file");
 			return 1;
 		}
-		std::string ca_passphrase = cmdLine.GetSafeArgument("-sslpass", 0, "");
-		m_mainworker.SetSecureWebserverPass(ca_passphrase);
+		secure_webserver_settings.private_key_pass_phrase = cmdLine.GetSafeArgument("-sslpass", 0, "");
 	}
+	if (cmdLine.HasSwitch("-sslmethod"))
+	{
+		if (cmdLine.GetArgumentCount("-sslmethod") != 1)
+		{
+			_log.Log(LOG_ERROR, "Please specify a SSL method");
+			return 1;
+		}
+		secure_webserver_settings.ssl_method = cmdLine.GetSafeArgument("-sslmethod", 0, "");
+	}
+	if (cmdLine.HasSwitch("-ssloptions"))
+	{
+		if (cmdLine.GetArgumentCount("-ssloptions") != 1)
+		{
+			_log.Log(LOG_ERROR, "Please specify SSL options");
+			return 1;
+		}
+		secure_webserver_settings.options = cmdLine.GetSafeArgument("-ssloptions", 0, "");
+	}
+	if (cmdLine.HasSwitch("-ssldhparam"))
+	{
+		if (cmdLine.GetArgumentCount("-ssldhparam") != 1)
+		{
+			_log.Log(LOG_ERROR, "Please specify a file path for the SSL DH parameters file");
+			return 1;
+		}
+		secure_webserver_settings.tmp_dh_file_path = cmdLine.GetSafeArgument("-ssldhparam", 0, "");
+	}
+	m_mainworker.SetSecureWebserverSettings(secure_webserver_settings);
 #endif
 	if (cmdLine.HasSwitch("-nowwwpwd"))
 	{

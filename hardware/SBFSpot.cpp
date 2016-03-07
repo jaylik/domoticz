@@ -17,7 +17,6 @@ CSBFSpot::CSBFSpot(const int ID, const std::string &SMAConfigFile)
 {
 	std::vector<std::string> results;
 	
-	m_SBFInverter="";
 	m_HwdID=ID;
 #ifdef WIN32
 	StringSplit(SMAConfigFile, ";", results);
@@ -161,8 +160,6 @@ char *strftime_t (const char *format, const time_t rawtime)
 
 void CSBFSpot::SendMeter(const unsigned char ID1,const unsigned char ID2, const double musage, const double mtotal, const std::string &defaultname)
 {
-	int Idx=(ID1 * 256) + ID2;
-
 	RBUF tsen;
 	memset(&tsen,0,sizeof(RBUF));
 
@@ -201,52 +198,9 @@ void CSBFSpot::SendMeter(const unsigned char ID1,const unsigned char ID2, const 
 	sDecodeRXMessage(this, (const unsigned char *)&tsen.ENERGY, defaultname.c_str(), 255);
 }
 
-void CSBFSpot::SendTempSensor(const unsigned char Idx, const float Temp, const std::string &defaultname)
-{
-	RBUF tsen;
-	memset(&tsen,0,sizeof(RBUF));
-
-	tsen.TEMP.packetlength=sizeof(tsen.TEMP)-1;
-	tsen.TEMP.packettype=pTypeTEMP;
-	tsen.TEMP.subtype=sTypeTEMP10;
-	tsen.TEMP.battery_level=9;
-	tsen.TEMP.rssi=12;
-	tsen.TEMP.id1=0;
-	tsen.TEMP.id2=Idx;
-
-	tsen.TEMP.tempsign=(Temp>=0)?0:1;
-	int at10=round(abs(Temp*10.0f));
-	tsen.TEMP.temperatureh=(BYTE)(at10/256);
-	at10-=(tsen.TEMP.temperatureh*256);
-	tsen.TEMP.temperaturel=(BYTE)(at10);
-
-	sDecodeRXMessage(this, (const unsigned char *)&tsen.TEMP, defaultname.c_str(), 255);
-}
-
-void CSBFSpot::SendVoltage(const unsigned long Idx, const float Volt, const std::string &defaultname)
-{
-	_tGeneralDevice gDevice;
-	gDevice.subtype=sTypeVoltage;
-	gDevice.id=1;
-	gDevice.floatval1=Volt;
-	gDevice.intval1 = static_cast<int>(Idx);
-	sDecodeRXMessage(this, (const unsigned char *)&gDevice, defaultname.c_str(), 255);
-}
-
-void CSBFSpot::SendPercentage(const unsigned long Idx, const float Percentage, const std::string &defaultname)
-{
-	_tGeneralDevice gDevice;
-	gDevice.subtype=sTypePercentage;
-	gDevice.id=1;
-	gDevice.floatval1=Percentage;
-	gDevice.intval1 = static_cast<int>(Idx);
-	sDecodeRXMessage(this, (const unsigned char *)&gDevice, defaultname.c_str(), 255);
-}
-
 bool CSBFSpot::GetMeter(const unsigned char ID1,const unsigned char ID2, double &musage, double &mtotal)
 {
 	int Idx=(ID1 * 256) + ID2;
-	bool bDeviceExits=true;
 	std::vector<std::vector<std::string> > result;
 	result=m_sql.safe_query("SELECT Name, sValue FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID==%d) AND (Type==%d) AND (Subtype==%d)",
 		m_HwdID, int(Idx), int(pTypeENERGY), int(sTypeELEC2));
@@ -265,19 +219,21 @@ bool CSBFSpot::GetMeter(const unsigned char ID1,const unsigned char ID2, double 
 
 void CSBFSpot::ImportOldMonthData()
 {
+	_log.Log(LOG_STATUS, "SBFSpot Import Old Month Data: Start");
 	//check if this device exists in the database, if not exit
 	bool bDeviceExits = true;
 	std::vector<std::vector<std::string> > result;
-	result = m_sql.safe_query("SELECT ID FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID==%d) AND (Type==%d) AND (Subtype==%d)",
-		m_HwdID, int(1), int(pTypeENERGY), int(sTypeELEC2));
+	result = m_sql.safe_query("SELECT ID FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Type==%d) AND (Subtype==%d)",
+		m_HwdID, "00000001", int(pTypeGeneral), int(sTypeKwh));
 	if (result.size() < 1)
 	{
 		//Lets create the sensor, and try again
 		SendMeter(0, 1, 0, 0, "SolarMain");
-		result = m_sql.safe_query("SELECT ID FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID==%d) AND (Type==%d) AND (Subtype==%d)",
-			m_HwdID, int(1), int(pTypeENERGY), int(sTypeELEC2));
+		result = m_sql.safe_query("SELECT ID FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Type==%d) AND (Subtype==%d)",
+			m_HwdID, "00000001", int(pTypeGeneral), int(sTypeKwh));
 		if (result.size() < 1)
 		{
+			_log.Log(LOG_ERROR, "SBFSpot Import Old Month Data: FAILED - Cannot find sensor in database");
 			return;
 		}
 	}
@@ -300,6 +256,7 @@ void CSBFSpot::ImportOldMonthData()
 			ImportOldMonthData(ulID,iYear, iMonth);
 		}
 	}
+	_log.Log(LOG_STATUS, "SBFSpot Import Old Month Data: Complete");
 }
 
 void CSBFSpot::ImportOldMonthData(const unsigned long long DevID, const int Year, const int Month)
@@ -366,13 +323,12 @@ void CSBFSpot::ImportOldMonthData(const unsigned long long DevID, const int Year
 				char szDate[40];
 				sprintf(szDate, "%04d-%02d-%02d", year, month, day);
 
-				result = m_sql.safe_query("SELECT Value FROM Meter_Calendar WHERE (DeviceRowID==%llu) AND (Date=='%q')",
-					DevID, szDate);
+				result = m_sql.safe_query("SELECT Value FROM Meter_Calendar WHERE (DeviceRowID==%llu) AND (Date=='%q')", DevID, szDate);
 				if (result.size() == 0)
 				{
 					//Insert value into our database
-					result = m_sql.safe_query("INSERT INTO Meter_Calendar (DeviceRowID, Value, Date) VALUES ('%llu', '%llu', '%q')",
-						DevID, ulCounter, szDate);
+					m_sql.safe_query("INSERT INTO Meter_Calendar (DeviceRowID, Value, Date) VALUES ('%llu', '%llu', '%q')", DevID, ulCounter, szDate);
+					_log.Log(LOG_STATUS, "SBFSpot Import Old Month Data: Inserting %s",szDate);
 				}
 
 			}
@@ -422,25 +378,26 @@ void CSBFSpot::ImportOldMonthData(const unsigned long long DevID, const int Year
 						int month = atoi(results[0].substr(monthPos, 2).c_str());
 						int year = atoi(results[0].substr(yearPos, 4).c_str());
 
-std::string szKwhCounter = results[iInvOff + 1];
-stdreplace(szKwhCounter, ",", ".");
-double kWhCounter = atof(szKwhCounter.c_str()) * 100000;
-unsigned long long ulCounter = (unsigned long long)kWhCounter;
+						std::string szKwhCounter = results[iInvOff + 1];
+						stdreplace(szKwhCounter, ",", ".");
+						double kWhCounter = atof(szKwhCounter.c_str()) * 100000;
+						unsigned long long ulCounter = (unsigned long long)kWhCounter;
 
-//check if this day record does not exists in the database, and insert it
-std::vector<std::vector<std::string> > result;
+						//check if this day record does not exists in the database, and insert it
+						std::vector<std::vector<std::string> > result;
 
-char szDate[40];
-sprintf(szDate, "%04d-%02d-%02d", year, month, day);
+						char szDate[40];
+						sprintf(szDate, "%04d-%02d-%02d", year, month, day);
 
-result = m_sql.safe_query("SELECT Value FROM Meter_Calendar WHERE (DeviceRowID==%llu) AND (Date=='%q')",
-	DevID, szDate);
-if (result.size() == 0)
-{
-	//Insert value into our database
-	m_sql.safe_query("INSERT INTO Meter_Calendar (DeviceRowID, Value, Date) VALUES ('%llu', '%llu', '%q')",
-		DevID, ulCounter, szDate);
-}
+						result = m_sql.safe_query("SELECT Value FROM Meter_Calendar WHERE (DeviceRowID==%llu) AND (Date=='%q')",
+							DevID, szDate);
+						if (result.size() == 0)
+						{
+							//Insert value into our database
+							m_sql.safe_query("INSERT INTO Meter_Calendar (DeviceRowID, Value, Date) VALUES ('%llu', '%llu', '%q')",
+								DevID, ulCounter, szDate);
+							_log.Log(LOG_STATUS, "SBFSpot Import Old Month Data: Inserting %s", szDate);
+						}
 					}
 				}
 			}
@@ -581,40 +538,40 @@ void CSBFSpot::GetMeterDetails()
 		tmpString = results[16];
 		stdreplace(tmpString, ",", ".");
 		voltage = static_cast<float>(atof(tmpString.c_str()));
-		SendVoltage((InvIdx * 10) + 1, voltage, "Volt uac1");
+		SendVoltageSensor(0, (InvIdx * 10) + 1, 255, voltage, "Volt uac1");
 		tmpString = results[17];
 		stdreplace(tmpString, ",", ".");
 		voltage = static_cast<float>(atof(tmpString.c_str()));
 		if (voltage != 0) {
-			SendVoltage((InvIdx * 10) + 2, voltage, "Volt uac2");
+			SendVoltageSensor(0, (InvIdx * 10) + 2, 255, voltage, "Volt uac2");
 		}
 		tmpString = results[18];
 		stdreplace(tmpString, ",", ".");
 		voltage = static_cast<float>(atof(tmpString.c_str()));
 		if (voltage != 0) {
-			SendVoltage((InvIdx * 10) + 3, voltage, "Volt uac3");
+			SendVoltageSensor(0, (InvIdx * 10) + 3, 255, voltage, "Volt uac3");
 		}
 
 		float percentage;
 		tmpString = results[21];
 		stdreplace(tmpString, ",", ".");
 		percentage = static_cast<float>(atof(tmpString.c_str()));
-		SendPercentage((InvIdx * 10) + 1, percentage, "Efficiency");
+		SendPercentageSensor((InvIdx * 10) + 1, 0, 255, percentage, "Efficiency");
 		tmpString = results[24];
 		stdreplace(tmpString, ",", ".");
 		percentage = static_cast<float>(atof(tmpString.c_str()));
-		SendPercentage((InvIdx * 10) + 2, percentage, "Hz");
+		SendPercentageSensor((InvIdx * 10) + 2, 0, 255, percentage, "Hz");
 		tmpString = results[27];
 		stdreplace(tmpString, ",", ".");
 		percentage = static_cast<float>(atof(tmpString.c_str()));
-		SendPercentage((InvIdx * 10) + 3, percentage, "BT_Signal");
+		SendPercentageSensor((InvIdx * 10) + 3, 0, 255, percentage, "BT_Signal");
 
 		if (results.size() >= 31)
 		{
 			tmpString = results[30];
 			stdreplace(tmpString, ",", ".");
 			float temperature = static_cast<float>(atof(tmpString.c_str()));
-			SendTempSensor((InvIdx * 10) + 1, temperature, "Temperature");
+			SendTempSensor((InvIdx * 10) + 1, 255, temperature, "Temperature");
 		}
 		InvIdx++;
 	}
@@ -638,18 +595,18 @@ void CSBFSpot::GetMeterDetails()
 //Webserver helpers
 namespace http {
 	namespace server {
-		char * CWebServer::SBFSpotImportOldData(WebEmSession & session, const request& req)
+		void CWebServer::SBFSpotImportOldData(WebEmSession & session, const request& req, std::string & redirect_uri)
 		{
-			m_retstr = "/index.html";
+			redirect_uri = "/index.html";
 			if (session.rights != 2)
 			{
 				//No admin user, and not allowed to be here
-				return (char*)m_retstr.c_str();
+				return;
 			}
 
 			std::string idx = request::findValue(&req, "idx");
 			if (idx == "") {
-				return (char*)m_retstr.c_str();
+				return;
 			}
 			int hardwareID = atoi(idx.c_str());
 			CDomoticzHardwareBase *pHardware = m_mainworker.GetHardware(hardwareID);
@@ -657,11 +614,10 @@ namespace http {
 			{
 				if (pHardware->HwdType == HTYPE_SBFSpot)
 				{
-					CSBFSpot *pSBFSpot = (CSBFSpot *)pHardware;
+					CSBFSpot *pSBFSpot = reinterpret_cast<CSBFSpot *>(pHardware);
 					pSBFSpot->ImportOldMonthData();
 				}
 			}
-			return (char*)m_retstr.c_str();
 		}
 	}
 }

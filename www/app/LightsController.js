@@ -979,7 +979,7 @@ define(['app'], function (app) {
 					if (switchtype==8) {
 						addjvalstr="&addjvalue=" + $("#lightcontent #motionoffdelay").val();
 					}
-					else if ((switchtype==0)||(switchtype==7)||(switchtype==9)||(switchtype==11)) {
+					else if ((switchtype==0)||(switchtype==7)||(switchtype==9)||(switchtype==11)||(switchtype==18)) {
 						addjvalstr="&addjvalue=" + $("#lightcontent #offdelay").val();
 						addjvalstr+="&addjvalue2=" + $("#lightcontent #ondelay").val();
 					}
@@ -1355,9 +1355,9 @@ define(['app'], function (app) {
 				});
 			});
 			// Limit level length to levelNamesMaxLength
-			$("#newselectorlevelbutton").prop("disabled", false).removeClass("ui-state-disabled");
+			$("#lightcontent #newselectorlevelbutton").prop("disabled", false).removeClass("ui-state-disabled");
 			if (levelNames.length === levelNamesMaxLength) {
-				$("#newselectorlevelbutton").prop("disabled", true).addClass("ui-state-disabled");
+				$("#lightcontent #newselectorlevelbutton").prop("disabled", true).addClass("ui-state-disabled");
 			}
 		};
 
@@ -1573,6 +1573,8 @@ define(['app'], function (app) {
 			$("#lightcontent #devicename").val(unescape(name));
 			$("#lightcontent #devicedescription").val(unescape(description));
 
+			$("#lightcontent .selector-switch-options").hide();
+
 			if ($.stype=="Security") {
 				$("#lightcontent #SwitchType").hide();
 				$("#lightcontent #OnDelayDiv").hide();
@@ -1617,7 +1619,6 @@ define(['app'], function (app) {
 				$("#lightcontent #OffDelayDiv").hide();
 				$("#lightcontent #MotionDiv").hide();
 				$("#lightcontent #SwitchIconDiv").hide();
-				$("#lightcontent .selector-switch-options").hide();
 				if (switchtype==8) {
 					$("#lightcontent #MotionDiv").show();
 					$("#lightcontent #motionoffdelay").val(addjvalue);
@@ -2261,6 +2262,9 @@ define(['app'], function (app) {
 							img += '<img src="images/' + item.Image + '48_On.png" title="' + $.t("Turn Off") + '" onclick="SwitchLight(' + item.idx + ',\'Off\',RefreshLights,' + item.Protected + ');" class="lcursor" height="48" width="48">';
 						}
 					}
+					else if (item.SubType.indexOf("Itho")==0) {
+						img=$(id + " #img").html();
+					}
 					else {
 						if (
 							(item.Status == 'On')||
@@ -2329,6 +2333,7 @@ define(['app'], function (app) {
 										.find('label')
 											.removeClass('ui-state-active')
 											.removeClass('ui-state-focus')
+											.removeClass('ui-state-hover')
 											.end()
 										.find('input:radio')
 											.removeProp('checked')
@@ -2583,12 +2588,12 @@ define(['app'], function (app) {
 					if ((item.SubType=="RAEX")||(item.SubType.indexOf('A-OK') == 0)||(item.SubType.indexOf('RollerTrol') == 0)||(item.SubType=="Harrison")||(item.SubType.indexOf('RFY') == 0)||(item.SubType.indexOf('ASA') == 0)||(item.SubType.indexOf('T6 DC') == 0)||(item.SwitchType.indexOf("Venetian Blinds") == 0)) {
 						if (item.Status == 'Closed') {
 							xhtm+='\t      <td id="img"><img src="images/blindsopen48.png" title="' + $.t("Open Blinds") + '" onclick="SwitchLight(' + item.idx + ',\'Off\',RefreshLights,' + item.Protected +');" class="lcursor" height="48" width="48"></td>\n';
-							xhtm+='\t      <td id="img2"><img src="images/blindsstop.png" title="Stop Blinds" onclick="SwitchLight(' + item.idx + ',\'Stop\',RefreshLights,' + item.Protected +');" class="lcursor" height="48" width="24"></td>\n';
+							xhtm+='\t      <td id="img2"><img src="images/blindsstop.png" title="' + $.t("Stop Blinds") +'" onclick="SwitchLight(' + item.idx + ',\'Stop\',RefreshLights,' + item.Protected +');" class="lcursor" height="48" width="24"></td>\n';
 							xhtm+='\t      <td id="img3"><img src="images/blinds48sel.png" title="' + $.t("Close Blinds") + '" onclick="SwitchLight(' + item.idx + ',\'On\',RefreshLights,' + item.Protected +');" class="lcursor" height="48" width="48"></td>\n';
 						}
 						else {
 							xhtm+='\t      <td id="img"><img src="images/blindsopen48sel.png" title="' + $.t("Open Blinds") + '" onclick="SwitchLight(' + item.idx + ',\'Off\',RefreshLights,' + item.Protected +');" class="lcursor" height="48" width="48"></td>\n';
-							xhtm+='\t      <td id="img2"><img src="images/blindsstop.png" title="Stop Blinds" onclick="SwitchLight(' + item.idx + ',\'Stop\',RefreshLights,' + item.Protected +');" class="lcursor" height="48" width="24"></td>\n';
+							xhtm+='\t      <td id="img2"><img src="images/blindsstop.png" title="' + $.t("Stop Blinds") +'" onclick="SwitchLight(' + item.idx + ',\'Stop\',RefreshLights,' + item.Protected +');" class="lcursor" height="48" width="24"></td>\n';
 							xhtm+='\t      <td id="img3"><img src="images/blinds48.png" title="' + $.t("Close Blinds") + '" onclick="SwitchLight(' + item.idx + ',\'On\',RefreshLights,' + item.Protected +');" class="lcursor" height="48" width="48"></td>\n';
 						}
 					}
@@ -2607,12 +2612,12 @@ define(['app'], function (app) {
 					if ((item.SubType=="RAEX")||(item.SubType.indexOf('A-OK') == 0)||(item.SubType.indexOf('RollerTrol') == 0)||(item.SubType=="Harrison")||(item.SubType.indexOf('RFY') == 0)||(item.SubType.indexOf('ASA') == 0)||(item.SubType.indexOf('T6 DC') == 0)) {
 						if (item.Status == 'Closed') {
 							xhtm+='\t      <td id="img"><img src="images/blindsopen48.png" title="' + $.t("Open Blinds") + '" onclick="SwitchLight(' + item.idx + ',\'On\',RefreshLights,' + item.Protected +');" class="lcursor" height="48" width="48"></td>\n';
-							xhtm+='\t      <td id="img2"><img src="images/blindsstop.png" title="Stop Blinds" onclick="SwitchLight(' + item.idx + ',\'Stop\',RefreshLights,' + item.Protected +');" class="lcursor" height="48" width="24"></td>\n';
+							xhtm+='\t      <td id="img2"><img src="images/blindsstop.png" title="' + $.t("Stop Blinds") +'" onclick="SwitchLight(' + item.idx + ',\'Stop\',RefreshLights,' + item.Protected +');" class="lcursor" height="48" width="24"></td>\n';
 							xhtm+='\t      <td id="img3"><img src="images/blinds48sel.png" title="' + $.t("Close Blinds") + '" onclick="SwitchLight(' + item.idx + ',\'Off\',RefreshLights,' + item.Protected +');" class="lcursor" height="48" width="48"></td>\n';
 						}
 						else {
 							xhtm+='\t      <td id="img"><img src="images/blindsopen48sel.png" title="' + $.t("Open Blinds") + '" onclick="SwitchLight(' + item.idx + ',\'On\',RefreshLights,' + item.Protected +');" class="lcursor" height="48" width="48"></td>\n';
-							xhtm+='\t      <td id="img2"><img src="images/blindsstop.png" title="Stop Blinds" onclick="SwitchLight(' + item.idx + ',\'Stop\',RefreshLights,' + item.Protected +');" class="lcursor" height="48" width="24"></td>\n';
+							xhtm+='\t      <td id="img2"><img src="images/blindsstop.png" title="' + $.t("Stop Blinds") +'" onclick="SwitchLight(' + item.idx + ',\'Stop\',RefreshLights,' + item.Protected +');" class="lcursor" height="48" width="24"></td>\n';
 							xhtm+='\t      <td id="img3"><img src="images/blinds48.png" title="' + $.t("Close Blinds") + '" onclick="SwitchLight(' + item.idx + ',\'Off\',RefreshLights,' + item.Protected +');" class="lcursor" height="48" width="48"></td>\n';
 						}
 					}
@@ -2783,6 +2788,10 @@ define(['app'], function (app) {
 									xhtm += '\t      <td id="img"><img src="images/' + item.Image + '48_On.png" title="' + $.t("Turn Off") + '" onclick="SwitchLight(' + item.idx + ',\'Off\',RefreshLights,' + item.Protected + ');" class="lcursor" height="48" width="48"></td>\n';
 								}
 							}
+							else if (item.SubType.indexOf("Itho")==0) {
+								bAddTimer=false;
+								xhtm+='\t      <td id="img"><img src="images/Fan48_On.png" height="48" width="48" class="lcursor" onclick="ShowIthoPopup(event, ' + item.idx + ', ShowLights, ' + item.Protected +');"></td>\n';
+							}					
 						  else {
 							if (
 								(item.Status == 'On')||
@@ -2888,9 +2897,9 @@ define(['app'], function (app) {
 									}
 					  }					
 					  if (item.Notifications == "true")
-						xhtm+='<a class="btnsmall-sel" onclick="ShowNotifications(' + item.idx + ',\'' + escape(item.Name) + '\', \'#lightcontent\', \'ShowLights\');" data-i18n="Notifications">Notifications</a>';
+						xhtm+='<a class="btnsmall-sel" onclick="ShowNotifications(' + item.idx + ',\'' + escape(item.Name) + '\', \'#lightcontent\', \'ShowLights\',' + bIsDimmer + ',\'' + item.Type + '\'' + ', \'' + item.SubType + '\');" data-i18n="Notifications">Notifications</a>';
 					  else
-						xhtm+='<a class="btnsmall" onclick="ShowNotifications(' + item.idx + ',\'' + escape(item.Name) + '\', \'#lightcontent\', \'ShowLights\');" data-i18n="Notifications">Notifications</a>';
+						xhtm+='<a class="btnsmall" onclick="ShowNotifications(' + item.idx + ',\'' + escape(item.Name) + '\', \'#lightcontent\', \'ShowLights\',' + bIsDimmer + ',\'' + item.Type + '\'' + ', \'' + item.SubType + '\');" data-i18n="Notifications">Notifications</a>';
 				  }
 				  xhtm+=
 						'</td>\n' +
@@ -2978,7 +2987,7 @@ define(['app'], function (app) {
 
 				//Slider Events
 				create: function(event,ui ) {
-					$( this ).slider( "option", "max", $( this ).data('maxlevel'));
+					$( this ).slider( "option", "max", $( this ).data('maxlevel')+1);
 					$( this ).slider( "option", "type", $( this ).data('type'));
 					$( this ).slider( "option", "isprotected", $( this ).data('isprotected'));
 					$( this ).slider( "value", $( this ).data('svalue')+1 );
@@ -2990,10 +2999,7 @@ define(['app'], function (app) {
 					var maxValue=$( this ).slider( "option", "max");
 					var dtype=$( this ).slider( "option", "type");
 					var isProtected=$( this ).slider( "option", "isprotected");
-					var fPercentage=0;
-					if (ui.value!=1) {
-						fPercentage=parseInt((100.0/(maxValue-1))*((ui.value-1)));
-					}
+					var fPercentage=parseInt((100.0/(maxValue-1))*((ui.value-1)));
 					var idx=$( this ).data('idx');
 					id="#lightcontent #" + idx;
 					var obj=$(id);
@@ -3067,7 +3073,7 @@ define(['app'], function (app) {
 			//Create Selector selectmenu
 			$('#lightcontent .selectorlevels select').selectmenu({
 				//Config
-				width: '272px',
+				width: '75%',
 				value: 0,
 				//Selector selectmenu events
 				create: function (event, ui) {
@@ -3168,6 +3174,10 @@ define(['app'], function (app) {
 				tothousecodes=4;
 				totunits=4;
 			}
+			else if (lighttype==11) {
+				tothousecodes=16;
+				totunits=64;
+			}
 			else if (lighttype==60) {
 				//Blyss
 				tothousecodes=16;
@@ -3182,6 +3192,11 @@ define(['app'], function (app) {
 				//LightwaveRF
 				bIsType5=1;
 				totunits=16;
+			}
+			else if (lighttype==59) {
+				//IT (Intertek,FA500,PROmax...)
+				bIsType5=1;
+				totunits=4;
 			}
 			else if ((lighttype==55)||(lighttype==57)) {
 				//Livolo
@@ -3215,12 +3230,20 @@ define(['app'], function (app) {
 				tothousecodes=4;
 				totunits=4;
 			}
+			else if (lighttype==305) {
+				//Openwebnet Blinds
+				totrooms=10;
+				totpointofloads=10;
+			}
+
 			
 			$("#dialog-addmanuallightdevice #he105params").hide();
 			$("#dialog-addmanuallightdevice #blindsparams").hide();
 			$("#dialog-addmanuallightdevice #lightingparams_enocean").hide();
 			$("#dialog-addmanuallightdevice #lightingparams_gpio").hide();
 			$("#dialog-addmanuallightdevice #homeconfortparams").hide();
+			$("#dialog-addmanuallightdevice #fanparams").hide();
+			$("#dialog-addmanuallightdevice #openwebnetparams").hide();
 
 			if (lighttype==104) {
 				//HE105
@@ -3279,6 +3302,17 @@ define(['app'], function (app) {
 			else if ((lighttype>=200)&&(lighttype<300)) {
 				//Blinds
 				$("#dialog-addmanuallightdevice #blindsparams").show();
+				var bShow4 = (lighttype==206)||(lighttype==207)||(lighttype==209);
+				var bShowUnit = (lighttype==206)||(lighttype==207)||(lighttype==208)||(lighttype==209);
+				if (bShow4)
+					$('#dialog-addmanuallightdevice #blindsparams #combocmd4').show();
+				else
+					$('#dialog-addmanuallightdevice #blindsparams #combocmd4').hide();
+				if (bShowUnit)
+					$('#dialog-addmanuallightdevice #blindparamsUnitCode').show();
+				else
+					$('#dialog-addmanuallightdevice #blindparamsUnitCode').hide();
+
 				$("#dialog-addmanuallightdevice #lighting1params").hide();
 				$("#dialog-addmanuallightdevice #lighting2params").hide();
 				$("#dialog-addmanuallightdevice #lighting3params").hide();
@@ -3289,6 +3323,31 @@ define(['app'], function (app) {
 				$("#dialog-addmanuallightdevice #lighting2params").hide();
 				$("#dialog-addmanuallightdevice #lighting3params").hide();
 				$("#dialog-addmanuallightdevice #homeconfortparams").show();
+			}
+			else if (lighttype==304) {
+				//Fan (Itho)
+				$("#dialog-addmanuallightdevice #lighting1params").hide();
+				$("#dialog-addmanuallightdevice #lighting2params").hide();
+				$("#dialog-addmanuallightdevice #lighting3params").hide();
+				$("#dialog-addmanuallightdevice #fanparams").show();
+			}
+			else if (lighttype==305) {
+				//Openwebnet Blinds
+				$("#dialog-addmanuallightdevice #openwebnetparams #combocmd1  >option").remove();
+				for (ii=1; ii<totrooms; ii++)
+				{
+					$('#dialog-addmanuallightdevice #openwebnetparams #combocmd1').append($('<option></option>').val(ii).html(ii));
+				}
+				$("#dialog-addmanuallightdevice #openwebnetparams #combocmd2  >option").remove();
+				for (ii=1; ii<totpointofloads; ii++)
+				{
+					$('#dialog-addmanuallightdevice #openwebnetparams #combocmd2').append($('<option></option>').val(ii).html(ii));
+				}
+				
+				$("#dialog-addmanuallightdevice #lighting1params").hide();
+				$("#dialog-addmanuallightdevice #lighting2params").hide();
+				$("#dialog-addmanuallightdevice #lighting3params").hide();
+				$("#dialog-addmanuallightdevice #openwebnetparams").show();
 			}
 			else if (bIsARCType==1) {
 				$('#dialog-addmanuallightdevice #lightparams1 #combohousecode >option').remove();
@@ -3318,9 +3377,9 @@ define(['app'], function (app) {
 				}
 				else {
 					$("#dialog-addmanuallightdevice #lighting2params #combocmd1").hide();
-					if ((lighttype==55)||(lighttype==57)||(lighttype==100)) {
+					if ((lighttype==55)||(lighttype==57)||(lighttype==59)||(lighttype==100)) {
 						$("#dialog-addmanuallightdevice #lighting2params #combocmd2").hide();
-						if (lighttype!=100) {
+						if ((lighttype!=59)&&(lighttype!=100)) {
 							$("#dialog-addmanuallightdevice #lighting2paramsUnitCode").hide();
 						}
 					}
@@ -3405,12 +3464,36 @@ define(['app'], function (app) {
 				mParams+="&housecode="+$("#dialog-addmanuallightdevice #homeconfortparams #combohousecode option:selected").val();
 				mParams+="&unitcode="+$("#dialog-addmanuallightdevice #homeconfortparams #combounitcode option:selected").val();
 			}
+			else if (lighttype==304) {
+				//Fan (Itho)
+				ID=
+					$("#dialog-addmanuallightdevice #fanparams #combocmd1 option:selected").text()+
+					$("#dialog-addmanuallightdevice #fanparams #combocmd2 option:selected").text()+
+					$("#dialog-addmanuallightdevice #fanparams #combocmd3 option:selected").text();
+				mParams+="&id="+ID;
+			}
+			else if (lighttype==305) {
+				//OpenWebNet Blinds
+				var ID="OpenWebNet";
+				var unitcode=
+					$("#dialog-addmanuallightdevice #openwebnetparams #combocmd1 option:selected").val()+
+					$("#dialog-addmanuallightdevice #openwebnetparams #combocmd2 option:selected").val();
+				mParams+="&id="+ID+"&unitcode="+unitcode;
+			}
 			else {
 				//AC
 				var ID="";
 				var bIsType5=0;
-				if ((lighttype==50)||(lighttype==55)||(lighttype==57)||(lighttype==100)||(lighttype==102)||(lighttype==105)||(lighttype==103))
-				{
+				if (
+					(lighttype==50)||
+					(lighttype==55)||
+					(lighttype==57)||
+					(lighttype==59)||
+					(lighttype==100)||
+					(lighttype==102)||
+					(lighttype==105)||
+					(lighttype==103)
+				) {
 					bIsType5=1;
 				}
 				if (bIsType5==0) {
@@ -3686,6 +3769,9 @@ define(['app'], function (app) {
 				$('#dialog-addmanuallightdevice #blindsparams #combocmd3').append($('<option></option>').val(ii).html($.strPad(ii.toString(16).toUpperCase(),2)));
 				$('#dialog-addmanuallightdevice #homeconfortparams #combocmd2').append($('<option></option>').val(ii).html($.strPad(ii.toString(16).toUpperCase(),2)));
 				$('#dialog-addmanuallightdevice #homeconfortparams #combocmd3').append($('<option></option>').val(ii).html($.strPad(ii.toString(16).toUpperCase(),2)));
+				$('#dialog-addmanuallightdevice #fanparams #combocmd1').append($('<option></option>').val(ii).html($.strPad(ii.toString(16).toUpperCase(),2)));
+				$('#dialog-addmanuallightdevice #fanparams #combocmd2').append($('<option></option>').val(ii).html($.strPad(ii.toString(16).toUpperCase(),2)));
+				$('#dialog-addmanuallightdevice #fanparams #combocmd3').append($('<option></option>').val(ii).html($.strPad(ii.toString(16).toUpperCase(),2)));
 			}
 			$('#dialog-addmanuallightdevice #blindsparams #combounitcode >option').remove();
 			for (ii=0; ii<16; ii++)

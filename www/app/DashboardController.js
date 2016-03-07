@@ -185,7 +185,21 @@ define(['app'], function (app) {
 				$.each(data.result, function(i,item){
 							//Lights
 							var isdimmer=false;
-							if (((item.Type.indexOf('Light') == 0)||(item.Type.indexOf('Blind') == 0)||(item.Type.indexOf('Curtain') == 0)||(item.Type.indexOf('Thermostat 2') == 0)||(item.Type.indexOf('Thermostat 3') == 0)||(item.Type.indexOf('Chime') == 0)||(item.Type.indexOf('RFY') == 0)||(item.Type.indexOf('ASA') == 0)||(item.SubType=="Smartwares Mode")||(item.SubType=="Relay"))&&(item.Favorite!=0))
+							if (
+								(
+									(item.Type.indexOf('Light') == 0)||
+									(item.Type.indexOf('Blind') == 0)||
+									(item.Type.indexOf('Curtain') == 0)||
+									(item.Type.indexOf('Thermostat 2') == 0)||
+									(item.Type.indexOf('Thermostat 3') == 0)||
+									(item.Type.indexOf('Chime') == 0)||
+									(item.Type.indexOf('RFY') == 0)||
+									(item.Type.indexOf('ASA') == 0)||
+									(item.SubType=="Smartwares Mode")||
+									(item.SubType=="Relay")||
+									((typeof item.SubType != 'undefined')&&(item.SubType.indexOf('Itho')==0))
+								)
+								&&(item.Favorite!=0))
 							{
 								id="#dashcontent #light_" + item.idx;
 								var obj=$(id);
@@ -403,6 +417,7 @@ define(['app'], function (app) {
 														.find('label')
 															.removeClass('ui-state-active')
 															.removeClass('ui-state-focus')
+															.removeClass('ui-state-hover')
 															.end()
 														.find('input:radio')
 															.removeProp('checked')
@@ -417,6 +432,29 @@ define(['app'], function (app) {
 												}
 											}
 										}
+										else if (item.SubType.indexOf("Itho")==0) {
+											var class_1 = "btn btn-mini";
+											var class_2 = "btn btn-mini";
+											var class_3 = "btn btn-mini";
+											var class_timer = "btn btn-mini";
+											if (item.Status=="1") {
+												class_1 += " btn-info";
+											}
+											else if (item.Status=="2") {
+												class_2 += " btn-info";
+											}
+											else if (item.Status=="3") {
+												class_3 += " btn-info";
+											}
+											else if (item.Status=="timer") {
+												class_timer += " btn-info";
+											}
+											status=
+												'<button class="' + class_1 + '" type="button" onclick="SwitchLight(' + item.idx + ',\'1\',RefreshFavorites,' + item.Protected +');">' + $.t("1") +'</button> ' +
+												'<button class="' + class_2 + '" type="button" onclick="SwitchLight(' + item.idx + ',\'2\',RefreshFavorites,' + item.Protected +');">' + $.t("2") +'</button> ' +
+												'<button class="' + class_3 + '" type="button" onclick="SwitchLight(' + item.idx + ',\'3\',RefreshFavorites,' + item.Protected +');">' + $.t("3") +'</button> ' +
+												'<button class="' + class_timer + '" type="button" onclick="SwitchLight(' + item.idx + ',\'timer\',RefreshFavorites,' + item.Protected +');">' + $.t("Timer") +'</button>';
+										}					
 										else {
 											if (
 													(item.Status == 'On')||
@@ -671,6 +709,9 @@ define(['app'], function (app) {
 												img += '<img src="images/' + item.Image + '48_On.png" title="' + $.t("Turn Off") + '" onclick="SwitchLight(' + item.idx + ',\'Off\',RefreshFavorites,' + item.Protected +');" class="lcursor" height="40" width="40">';
 											}
 										}
+										else if (item.SubType.indexOf("Itho")==0) {
+											img=$(id + " #img").html();
+										}					
 										else {
 											if (
 													(item.Status == 'On')||
@@ -1235,12 +1276,13 @@ define(['app'], function (app) {
 							(item.Type == "Current") || 
 							(item.Type == "Energy") || 
 							(item.Type == "Current/Energy") || 
-							(item.Type == "Air Quality") || 
+							(item.Type == "Power") ||
+							(item.Type == "Air Quality") ||
 							(item.Type == "Lux") || 
 							(item.Type == "Weight") || 
 							(item.Type == "Usage")||
 							(item.SubType=="Percentage")||
-							(item.Type=="Fan")||
+							((item.Type=="Fan")&&(typeof item.SubType != 'undefined')&&(item.SubType.indexOf('Itho')!=0))||
 							((item.Type == "Thermostat")&&(item.SubType=="SetPoint"))||
 							(item.SubType=="kWh")||
 							(item.SubType=="Soil Moisture")||
@@ -1283,8 +1325,9 @@ define(['app'], function (app) {
 								}
 								else if (
 											(item.Type == "Energy")||
-											(item.Type == "Current/Energy")||
-											(item.SubType=="kWh")||
+											(item.Type == "Current/Energy") ||
+											(item.Type == "Power") ||
+											(item.SubType == "kWh") ||
 											(item.Type == "Air Quality")||
 											(item.Type == "Lux")||
 											(item.Type == "Weight")||
@@ -1360,7 +1403,7 @@ define(['app'], function (app) {
 									status=item.Data;
 									bigtext=item.Data;
 								}
-								else if ((item.Type == "Energy")||(item.Type == "Current/Energy")||(item.SubType=="kWh")) {
+								else if ((item.Type == "Energy") || (item.Type == "Current/Energy") || (item.Type == "Power") || (item.SubType == "kWh")) {
 									status=item.Data;
 								}
 								else if (item.Type == "Air Quality") {
@@ -1695,8 +1738,20 @@ define(['app'], function (app) {
 				bHaveAddedDevider = false;
 				$.each(data.result, function(i,item){
 				  if (
-						(item.Favorite!=0)&&
-						((item.Type.indexOf('Light') == 0)||(item.SubType=="Smartwares Mode")||(item.Type.indexOf('Blind') == 0)||(item.Type.indexOf('Curtain') == 0)||(item.Type.indexOf('Thermostat 2') == 0)||(item.Type.indexOf('Thermostat 3') == 0)||(item.Type.indexOf('Chime') == 0)||(item.Type.indexOf('RFY') == 0)||(item.Type.indexOf('ASA') == 0)||(item.SubType=="Relay")||((item.Type.indexOf('Value') == 0) && (typeof item.SwitchType != 'undefined')))
+						(item.Favorite!=0)&&(
+							(item.Type.indexOf('Light') == 0)||
+							(item.SubType=="Smartwares Mode")||
+							(item.Type.indexOf('Blind') == 0)||
+							(item.Type.indexOf('Curtain') == 0)||
+							(item.Type.indexOf('Thermostat 2') == 0)||
+							(item.Type.indexOf('Thermostat 3') == 0)||
+							(item.Type.indexOf('Chime') == 0)||
+							(item.Type.indexOf('RFY') == 0)||
+							(item.Type.indexOf('ASA') == 0)||
+							(item.SubType=="Relay")||
+							((typeof item.SubType != 'undefined')&&(item.SubType.indexOf('Itho')==0))||
+							((item.Type.indexOf('Value') == 0) && (typeof item.SwitchType != 'undefined'))
+						)
 					  )
 				  {
 					totdevices+=1;
@@ -1941,6 +1996,29 @@ define(['app'], function (app) {
 										// no buttons, no status needed on mobile mode
 										status = '';
 									}
+									else if (item.SubType.indexOf("Itho")==0) {
+										var class_1 = "btn btn-mini";
+										var class_2 = "btn btn-mini";
+										var class_3 = "btn btn-mini";
+										var class_timer = "btn btn-mini";
+										if (item.Status=="1") {
+											class_1 += " btn-info";
+										}
+										else if (item.Status=="2") {
+											class_2 += " btn-info";
+										}
+										else if (item.Status=="3") {
+											class_3 += " btn-info";
+										}
+										else if (item.Status=="timer") {
+											class_timer += " btn-info";
+										}
+										status=
+											'<button class="' + class_1 + '" type="button" onclick="SwitchLight(' + item.idx + ',\'1\',RefreshFavorites,' + item.Protected +');">' + $.t("1") +'</button> ' +
+											'<button class="' + class_2 + '" type="button" onclick="SwitchLight(' + item.idx + ',\'2\',RefreshFavorites,' + item.Protected +');">' + $.t("2") +'</button> ' +
+											'<button class="' + class_3 + '" type="button" onclick="SwitchLight(' + item.idx + ',\'3\',RefreshFavorites,' + item.Protected +');">' + $.t("3") +'</button> ' +
+											'<button class="' + class_timer + '" type="button" onclick="SwitchLight(' + item.idx + ',\'timer\',RefreshFavorites,' + item.Protected +');">' + $.t("Timer") +'</button>';
+									}					
 									else {
 										if (
 												(item.Status == 'On')||
@@ -2113,12 +2191,12 @@ define(['app'], function (app) {
 										if ((item.SubType=="RAEX")||(item.SubType.indexOf('A-OK') == 0)||(item.SubType.indexOf('RollerTrol') == 0)||(item.SubType=="Harrison")||(item.SubType.indexOf('RFY') == 0)||(item.SubType.indexOf('ASA') == 0)||(item.SubType.indexOf('T6 DC') == 0)||(item.SwitchType.indexOf("Venetian Blinds") == 0)) {
 											if (item.Status == 'Closed') {
 												xhtm+='\t      <td id="img"><img src="images/blindsopen48.png" title="' + $.t("Open Blinds") +'" onclick="SwitchLight(' + item.idx + ',\'Off\',RefreshFavorites,' + item.Protected +');" class="lcursor" height="40" width="40"></td>\n';
-												xhtm+='\t      <td id="img2"><img src="images/blindsstop.png" title="Stop Blinds" onclick="SwitchLight(' + item.idx + ',\'Stop\',RefreshFavorites,' + item.Protected +');" class="lcursor" height="40" width="24"></td>\n';
+												xhtm+='\t      <td id="img2"><img src="images/blindsstop.png" title="' + $.t("Stop Blinds") +'" onclick="SwitchLight(' + item.idx + ',\'Stop\',RefreshFavorites,' + item.Protected +');" class="lcursor" height="40" width="24"></td>\n';
 												xhtm+='\t      <td id="img3"><img src="images/blinds48sel.png" title="' + $.t("Close Blinds") +'" onclick="SwitchLight(' + item.idx + ',\'On\',RefreshFavorites,' + item.Protected +');" class="lcursor" height="40" width="40"></td>\n';
 											}
 											else {
 												xhtm+='\t      <td id="img"><img src="images/blindsopen48sel.png" title="' + $.t("Open Blinds") +'" onclick="SwitchLight(' + item.idx + ',\'Off\',RefreshFavorites,' + item.Protected +');" class="lcursor" height="40" width="40"></td>\n';
-												xhtm+='\t      <td id="img2"><img src="images/blindsstop.png" title="Stop Blinds" onclick="SwitchLight(' + item.idx + ',\'Stop\',RefreshFavorites,' + item.Protected +');" class="lcursor" height="40" width="24"></td>\n';
+												xhtm+='\t      <td id="img2"><img src="images/blindsstop.png" title="' + $.t("Stop Blinds") +'" onclick="SwitchLight(' + item.idx + ',\'Stop\',RefreshFavorites,' + item.Protected +');" class="lcursor" height="40" width="24"></td>\n';
 												xhtm+='\t      <td id="img3"><img src="images/blinds48.png" title="' + $.t("Close Blinds") +'" onclick="SwitchLight(' + item.idx + ',\'On\',RefreshFavorites,' + item.Protected +');" class="lcursor" height="40" width="40"></td>\n';
 											}
 										}
@@ -2137,12 +2215,12 @@ define(['app'], function (app) {
 										if ((item.SubType=="RAEX")||(item.SubType.indexOf('A-OK') == 0)||(item.SubType.indexOf('RollerTrol') == 0)||(item.SubType=="Harrison")||(item.SubType.indexOf('RFY') == 0)||(item.SubType.indexOf('ASA') == 0)||(item.SubType.indexOf('T6 DC') == 0)) {
 											if (item.Status == 'Closed') {
 												xhtm+='\t      <td id="img"><img src="images/blindsopen48.png" title="' + $.t("Open Blinds") +'" onclick="SwitchLight(' + item.idx + ',\'On\',RefreshFavorites,' + item.Protected +');" class="lcursor" height="40" width="40"></td>\n';
-												xhtm+='\t      <td id="img2"><img src="images/blindsstop.png" title="Stop Blinds" onclick="SwitchLight(' + item.idx + ',\'Stop\',RefreshFavorites,' + item.Protected +');" class="lcursor" height="40" width="24"></td>\n';
+												xhtm+='\t      <td id="img2"><img src="images/blindsstop.png" title="' + $.t("Stop Blinds") +'" onclick="SwitchLight(' + item.idx + ',\'Stop\',RefreshFavorites,' + item.Protected +');" class="lcursor" height="40" width="24"></td>\n';
 												xhtm+='\t      <td id="img3"><img src="images/blinds48sel.png" title="' + $.t("Close Blinds") +'" onclick="SwitchLight(' + item.idx + ',\'Off\',RefreshFavorites,' + item.Protected +');" class="lcursor" height="40" width="40"></td>\n';
 											}
 											else {
 												xhtm+='\t      <td id="img"><img src="images/blindsopen48sel.png" title="' + $.t("Open Blinds") +'" onclick="SwitchLight(' + item.idx + ',\'On\',RefreshFavorites,' + item.Protected +');" class="lcursor" height="40" width="40"></td>\n';
-												xhtm+='\t      <td id="img2"><img src="images/blindsstop.png" title="Stop Blinds" onclick="SwitchLight(' + item.idx + ',\'Stop\',RefreshFavorites,' + item.Protected +');" class="lcursor" height="40" width="24"></td>\n';
+												xhtm+='\t      <td id="img2"><img src="images/blindsstop.png" title="' + $.t("Stop Blinds") +'" onclick="SwitchLight(' + item.idx + ',\'Stop\',RefreshFavorites,' + item.Protected +');" class="lcursor" height="40" width="24"></td>\n';
 												xhtm+='\t      <td id="img3"><img src="images/blinds48.png" title="' + $.t("Close Blinds") +'" onclick="SwitchLight(' + item.idx + ',\'Off\',RefreshFavorites,' + item.Protected +');" class="lcursor" height="40" width="40"></td>\n';
 											}
 										}
@@ -2258,6 +2336,9 @@ define(['app'], function (app) {
 											xhtm += '\t      <td id="img"><img src="images/' + item.Image + '48_On.png" onclick="SwitchLight(' + item.idx + ',\'Off\',RefreshFavorites,' + item.Protected + ');" class="lcursor" height="40" width="40"></td>\n';
 										}
 									}
+									else if (item.SubType.indexOf("Itho")==0) {
+										xhtm+='\t      <td id="img"><img src="images/Fan48_On.png" height="40" width="40" class="lcursor" onclick="ShowIthoPopup(event, ' + item.idx + ', RefreshFavorites, ' + item.Protected +');"></td>\n';
+									}					
 									else {
 										if (
 												(item.Status == 'On')||
@@ -2315,7 +2396,7 @@ define(['app'], function (app) {
 											});
 											xhtm += '</div></td>';
 										} else if (item.SelectorStyle === 1) {
-											xhtm += '<td><div style="margin-top:0.4em;" class="selectorlevels">';
+											xhtm += '<td><div style="margin-top:0.2em;" class="selectorlevels">';
 											xhtm += '<select id="selector' + item.idx + '" data-idx="' + item.idx + '" data-isprotected="' + item.Protected + '" data-level="' + item.LevelInt + '" data-levelname="' + escape(GetLightStatusText(item)) + '">';
 											var levelNames = item.LevelNames.split('|');
 											$.each(levelNames, function(index, levelName) {
@@ -3006,13 +3087,14 @@ define(['app'], function (app) {
 							(item.Type == "Current") || 
 							(item.Type == "Energy") || 
 							(item.SubType=="kWh") ||
-							(item.Type == "Current/Energy") || 
-							(item.Type == "Air Quality") || 
+							(item.Type == "Current/Energy") ||
+							(item.Type == "Power") ||
+							(item.Type == "Air Quality") ||
 							(item.Type == "Lux") || 
 							(item.Type == "Weight") || 
 							(item.Type == "Usage")||
 							(item.SubType == "Percentage")||	
-							(item.Type == "Fan")||						
+							((item.Type=="Fan")&&(typeof item.SubType != 'undefined')&&(item.SubType.indexOf('Itho')!=0))||
 							((item.Type == "Thermostat")&&(item.SubType=="SetPoint"))||
 							(item.SubType=="Soil Moisture")||
 							(item.SubType=="Leaf Wetness")||
@@ -3084,7 +3166,7 @@ define(['app'], function (app) {
 						else if ((item.Type == "Current")||(item.Type == "Current/Energy")) {
 							vname='<img src="images/next.png" onclick="ShowCurrentLog(\'#dashcontent\',\'ShowFavorites\',' + item.idx + ',\'' + escape(item.Name) + '\', ' + item.displaytype + ');" height="16" width="16">' + " " + item.Name;
 						}
-						else if ((item.Type == "Energy")||(item.SubType=="kWh")) {
+						else if ((item.Type == "Energy") || (item.SubType == "kWh") || (item.SubType == "Power")) {
 							vname='<img src="images/next.png" onclick="ShowCounterLogSpline(\'#dashcontent\',\'ShowFavorites\',' + item.idx + ',\'' + escape(item.Name) + '\', ' + item.SwitchTypeVal + ');" height="16" width="16">' + " " + item.Name;
 						}
 						else if (item.Type == "Air Quality") {
@@ -3153,7 +3235,8 @@ define(['app'], function (app) {
 						else if (
 									(item.Type == "Energy")||
 									(item.Type == "Current/Energy")||
-									(item.SubType=="kWh") ||
+									(item.Type == "Power") ||
+									(item.SubType == "kWh") ||
 									(item.Type == "Air Quality")||
 									(item.Type == "Lux")||
 									(item.Type == "Weight")||
@@ -3320,17 +3403,17 @@ define(['app'], function (app) {
 								status="&nbsp;";
 							}
 						}
-						else if ((item.Type == "Current")||(item.Type == "Current/Energy")) {
-							xhtm+='current48.png" class="lcursor" onclick="ShowCurrentLog(\'#dashcontent\',\'ShowFavorites\',' + item.idx + ',\'' + escape(item.Name) + '\', ' + item.displaytype + ');" height="40" width="40"></td>\n';
-							status=item.Data;
-						}
-						else if ((item.Type == "Energy")||(item.SubType=="kWh")) {
-							if (((item.Type == "Energy")||(item.SubType=="kWh"))&&(item.SwitchTypeVal == 4)) {
+						else if ((item.Type == "Energy")||(item.Type == "Power")||(item.SubType=="kWh")) {
+							if (((item.Type == "Energy")||(item.Type == "Power")||(item.SubType=="kWh"))&&(item.SwitchTypeVal == 4)) {
 								xhtm+='PV48.png" class="lcursor" onclick="ShowCounterLogSpline(\'#dashcontent\',\'ShowFavorites\',' + item.idx + ',\'' + escape(item.Name) + '\', ' + item.SwitchTypeVal + ');" height="40" width="40"></td>\n';
 							}
 							else {
 								xhtm+='current48.png" class="lcursor" onclick="ShowCounterLogSpline(\'#dashcontent\',\'ShowFavorites\',' + item.idx + ',\'' + escape(item.Name) + '\', ' + item.SwitchTypeVal + ');" height="40" width="40"></td>\n';
 							}
+							status=item.Data;
+						}
+						else if ((item.Type == "Current")||(item.Type == "Current/Energy")) {
+							xhtm+='current48.png" class="lcursor" onclick="ShowCurrentLog(\'#dashcontent\',\'ShowFavorites\',' + item.idx + ',\'' + escape(item.Name) + '\', ' + item.displaytype + ');" height="40" width="40"></td>\n';
 							status=item.Data;
 						}
 						else if (item.Type == "Air Quality") {
@@ -3544,7 +3627,7 @@ define(['app'], function (app) {
 
 				//Slider Events
 				create: function(event,ui ) {
-					$( this ).slider( "option", "max", $( this ).data('maxlevel'));
+					$( this ).slider( "option", "max", $( this ).data('maxlevel')+1);
 					$( this ).slider( "option", "type", $( this ).data('type'));
 					$( this ).slider( "option", "isprotected", $( this ).data('isprotected'));
 					$( this ).slider( "value", $( this ).data('svalue')+1 );
@@ -3556,10 +3639,7 @@ define(['app'], function (app) {
 					var maxValue=$( this ).slider( "option", "max");
 					var dtype=$( this ).slider( "option", "type");
 					var isProtected=$( this ).slider( "option", "isprotected");
-					var fPercentage=0;
-					if (ui.value!=1) {
-						fPercentage=parseInt((100.0/(maxValue-1))*((ui.value-1)));
-					}
+					var fPercentage=parseInt((100.0/(maxValue-1))*((ui.value-1)));
 					var idx=$( this ).data('idx');
 					id="#dashcontent #light_" + idx;
 					var obj=$(id);
@@ -3662,7 +3742,7 @@ define(['app'], function (app) {
 			//Create Selector selectmenu
 			$('#dashcontent .selectorlevels select').selectmenu({
 				//Config
-				width: '272px',
+				width: '75%',
 				value: 0,
 				//Selector selectmenu events
 				create: function (event, ui) {

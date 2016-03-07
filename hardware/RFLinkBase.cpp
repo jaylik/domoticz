@@ -1,3 +1,4 @@
+
 #include "stdafx.h"
 #include "RFLinkBase.h"
 #include "../main/Logger.h"
@@ -81,9 +82,20 @@ const _tRFLinkStringIntHelper rfswitches[] =
 	{ "Atlantic", sSwitchTypeAtlantic },	 // p..
 	{ "SilvercrestDB", sSwitchTypeSilvercrestDB }, // p..
 	{ "MedionDB", sSwitchTypeMedionDB },	 // p..
-	{ "VMC", sSwitchTypeVMC },	 // p..
-	{ "Keeloq", sSwitchTypeKeeloq },	 // p..
-	{ "CustomSwitch", sSwitchCustomSwitch },	 // p..
+	{ "VMC", sSwitchTypeVMC },				 // p..
+	{ "Keeloq", sSwitchTypeKeeloq },		 // p..
+	{ "CustomSwitch", sSwitchCustomSwitch }, // NA
+	{ "GeneralSwitch", sSwitchGeneralSwitch }, // NA
+	{ "Koch", sSwitchTypeKoch },			 // NA
+	{ "Kingpin", sSwitchTypeKingpin },		 // NA
+	{ "Funkbus", sSwitchTypeFunkbus },		 // NA
+	{ "Nice", sSwitchTypeNice },			 // NA
+	{ "Forest", sSwitchTypeForest },		 // NA
+	{ "MC145026", sSwitchMC145026 },		 // NA
+	{ "Lobeco", sSwitchLobeco },			 // NA
+	{ "Friedland", sSwitchFriedland },		 // NA
+	{ "BFT", sSwitchBFT },					 // NA
+	{ "Novatys", sSwitchNovatys},			 // NA
 	{ "", -1 }
 };
 
@@ -203,7 +215,8 @@ void CRFLinkBase::ParseData(const char *data, size_t len)
 
 bool CRFLinkBase::WriteToHardware(const char *pdata, const unsigned char length)
 {
-	_tGeneralSwitch *pSwitch = (_tGeneralSwitch*)pdata;
+	const _tGeneralSwitch *pSwitch = reinterpret_cast<const _tGeneralSwitch*>(pdata);
+
 	if (pSwitch->type != pTypeGeneralSwitch)
 		return false; //only allowed to control switches
 

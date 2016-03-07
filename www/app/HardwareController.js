@@ -44,7 +44,21 @@ define(['app'], function (app) {
             var datatimeout=$('#hardwarecontent #hardwareparamstable #combodatatimeout').val();
 
             var text = $("#hardwarecontent #hardwareparamstable #combotype option:selected").text();
-            if ((text.indexOf("Panasonic") >= 0)||(text.indexOf("Domoticz Internal") >= 0)||(text.indexOf("TE923") >= 0)||(text.indexOf("Volcraft") >= 0)||(text.indexOf("1-Wire") >= 0)||(text.indexOf("GPIO") >= 0)||(text.indexOf("BMP085") >= 0)||(text.indexOf("Dummy") >= 0)||(text.indexOf("System Alive") >= 0)||(text.indexOf("PiFace") >= 0)||(text.indexOf("Motherboard") >= 0)||(text.indexOf("Kodi") >= 0)||(text.indexOf("Evohome") >= 0 && text.indexOf("script") >= 0))
+            if (
+				(text.indexOf("Panasonic") >= 0) ||
+				(text.indexOf("TE923") >= 0) ||
+				(text.indexOf("Volcraft") >= 0) ||
+				(text.indexOf("1-Wire") >= 0) ||
+				(text.indexOf("GPIO") >= 0) ||
+				(text.indexOf("BMP085") >= 0) ||
+				(text.indexOf("HTU21D") >= 0) ||
+				(text.indexOf("Dummy") >= 0) ||
+				(text.indexOf("System Alive") >= 0) ||
+				(text.indexOf("PiFace") >= 0) ||
+				(text.indexOf("Motherboard") >= 0) ||
+				(text.indexOf("Kodi") >= 0) ||
+				(text.indexOf("Evohome") >= 0 && text.indexOf("script") >= 0)
+				)
             {
                 $.ajax({
                      url: "json.htm?type=command&param=updatehardware&htype=" + hardwaretype +
@@ -65,6 +79,7 @@ define(['app'], function (app) {
             }
             else if (text.indexOf("USB") >= 0)
             {
+                var Mode1 = "0";
                 var serialport=$("#hardwarecontent #divserial #comboserialport option:selected").text();
                 if (typeof serialport == 'undefined')
                 {
@@ -76,6 +91,20 @@ define(['app'], function (app) {
                         serialport="";
                     }
                 }
+
+                if (text.indexOf("MySensors") >= 0)
+                {
+                    var baudrate=$("#hardwarecontent #divbaudratemysensors #combobaudrate option:selected").val();
+
+                    if (typeof baudrate == 'undefined')
+                    {
+                        ShowNotify($.t('No baud rate selected!'), 2500, true);
+                        return;
+                    }
+
+                    Mode1 = baudrate;
+                }
+
                 var address="";
                 if (text.indexOf("S0 Meter") >= 0)
                 {
@@ -101,7 +130,17 @@ define(['app'], function (app) {
                      }
                 });
             }
-            else if ((text.indexOf("LAN") >= 0 && text.indexOf("YouLess") == -1 && text.indexOf("Integra") == -1 && text.indexOf("ETH8020") == -1 && text.indexOf("Anna") == -1 && text.indexOf("KMTronic") == -1 && text.indexOf("MQTT") == -1))
+            else if (
+					(text.indexOf("LAN") >= 0 &&
+					text.indexOf("YouLess") == -1 &&
+					text.indexOf("Integra") == -1 &&
+					text.indexOf("ETH8020") == -1 &&
+					text.indexOf("Anna") == -1 &&
+					text.indexOf("KMTronic") == -1  &&
+					text.indexOf("MQTT") == -1 &&
+					text.indexOf("Razberry") == -1
+					)
+				)
             {
                 var address=$("#hardwarecontent #divremote #tcpaddress").val();
                 if (address=="")
@@ -179,7 +218,15 @@ define(['app'], function (app) {
                      }
                 });
             }
-            else if ((text.indexOf("Domoticz") >= 0) || (text.indexOf("Harmony") >= 0) || (text.indexOf("ETH8020") >= 0) || (text.indexOf("Anna") >= 0) || (text.indexOf("KMTronic") >= 0) || (text.indexOf("MQTT") >= 0))
+            else if (
+				(text.indexOf("Domoticz") >= 0) ||
+				(text.indexOf("Harmony") >= 0) ||
+				(text.indexOf("ETH8020") >= 0) ||
+				(text.indexOf("Anna") >= 0) ||
+				(text.indexOf("KMTronic") >= 0) ||
+				(text.indexOf("MQTT") >= 0) ||
+				(text.indexOf("Razberry") >= 0)
+				)
             {
                 var address=$("#hardwarecontent #divremote #tcpaddress").val();
                 if (address=="")
@@ -200,8 +247,12 @@ define(['app'], function (app) {
                 }
                 var username=$("#hardwarecontent #divlogin #username").val();
                 var password=$("#hardwarecontent #divlogin #password").val();
-                var extra=$("#hardwarecontent #divmqtt #filename").val();
-                Mode1 = $("#hardwarecontent #divmqtt #combotopicselect").val();
+                var extra="";
+                var Mode1="";
+                if ((text.indexOf("MQTT") >= 0)) {
+					extra=$("#hardwarecontent #divmqtt #filename").val();
+					Mode1 = $("#hardwarecontent #divmqtt #combotopicselect").val();
+				}
                 $.ajax({
                      url: "json.htm?type=command&param=updatehardware&htype=" + hardwaretype +
                         "&address=" + address +
@@ -467,6 +518,46 @@ define(['app'], function (app) {
                      }
                 });
             }
+			else if (text.indexOf("MyHome OpenWebNet") >= 0)
+            {
+				var address=$("#hardwarecontent #divremote #tcpaddress").val();
+                if (address=="")
+                {
+                    ShowNotify($.t('Please enter an Address!'), 2500, true);
+                    return;
+                }
+                var port=$("#hardwarecontent #divremote #tcpport").val();
+                if (port=="")
+                {
+                    ShowNotify($.t('Please enter an Port!'), 2500, true);
+                    return;
+                }
+                var intRegex = /^\d+$/;
+                if(!intRegex.test(port)) {
+                    ShowNotify($.t('Please enter an Valid Port!'), 2500, true);
+                    return;
+                }
+
+                $.ajax({
+                     url: "json.htm?type=command&param=updatehardware&htype=" + hardwaretype +
+                        "&address=" + address +
+                        "&port=" + port +
+                        //"&username=" + encodeURIComponent(username) +
+                        "&name=" + encodeURIComponent(name) +
+                        "&enabled=" + bEnabled +
+                        "&idx=" + idx +
+                        "&datatimeout=" + datatimeout +
+                        "&Mode1=" + Mode1 + "&Mode2=" + Mode2 + "&Mode3=" + Mode3 + "&Mode4=" + Mode4 + "&Mode5=" + Mode5 + "&Mode6=" + Mode6,
+                     async: false,
+                     dataType: 'json',
+                     success: function(data) {
+                        RefreshHardwareTable();
+                     },
+                     error: function(){
+                            ShowNotify($.t('Problem updating hardware!'), 2500, true);
+                     }
+                });
+            }
         }
 
         AddHardware = function()
@@ -489,7 +580,22 @@ define(['app'], function (app) {
 
             var text = $("#hardwarecontent #hardwareparamstable #combotype option:selected").text();
 
-            if (((text.indexOf("Panasonic") >= 0) || text.indexOf("Domoticz Internal") >= 0) || (text.indexOf("TE923") >= 0) || (text.indexOf("Volcraft") >= 0) || (text.indexOf("1-Wire") >= 0) || (text.indexOf("BMP085") >= 0) || (text.indexOf("Dummy") >= 0) || (text.indexOf("System Alive") >= 0) || (text.indexOf("Kodi") >= 0) || (text.indexOf("PiFace") >= 0) || (text.indexOf("GPIO") >= 0) || (text.indexOf("Evohome") >= 0 && text.indexOf("script") >= 0) || (text.indexOf("Tellstick") >= 0) || (text.indexOf("Motherboard") >= 0))
+            if (
+				(text.indexOf("Panasonic") >= 0) ||
+				(text.indexOf("TE923") >= 0) ||
+				(text.indexOf("Volcraft") >= 0) ||
+				(text.indexOf("1-Wire") >= 0) ||
+				(text.indexOf("BMP085") >= 0) ||
+        (text.indexOf("HTU21D") >= 0) ||
+				(text.indexOf("Dummy") >= 0) ||
+				(text.indexOf("System Alive") >= 0) ||
+				(text.indexOf("Kodi") >= 0) ||
+				(text.indexOf("PiFace") >= 0) ||
+				(text.indexOf("GPIO") >= 0) ||
+				(text.indexOf("Evohome") >= 0 && text.indexOf("script") >= 0) ||
+				(text.indexOf("Tellstick") >= 0) ||
+				(text.indexOf("Motherboard") >= 0)
+				)
             {
                 $.ajax({
                      url: "json.htm?type=command&param=addhardware&htype=" + hardwaretype + "&port=1&name=" + encodeURIComponent(name) + "&enabled=" + bEnabled + "&datatimeout=" + datatimeout,
@@ -505,14 +611,30 @@ define(['app'], function (app) {
             }
             else if (text.indexOf("USB") >= 0)
             {
+                var Mode1 = "0";
                 var serialport=$("#hardwarecontent #divserial #comboserialport option:selected").text();
                 if (typeof serialport == 'undefined')
                 {
                     ShowNotify($.t('No serial port selected!'), 2500, true);
                     return;
                 }
+
+                if (text.indexOf("MySensors") >= 0)
+                {
+                    var baudrate=$("#hardwarecontent #divbaudratemysensors #combobaudrate option:selected").val();
+
+                    if (typeof baudrate == 'undefined')
+                    {
+                        ShowNotify($.t('No baud rate selected!'), 2500, true);
+                        return;
+                    }
+
+                    Mode1 = baudrate;
+                }
+
                 $.ajax({
-                     url: "json.htm?type=command&param=addhardware&htype=" + hardwaretype + "&port=" + encodeURIComponent(serialport) + "&name=" + encodeURIComponent(name) + "&enabled=" + bEnabled + "&datatimeout=" + datatimeout,
+                     url: "json.htm?type=command&param=addhardware&htype=" + hardwaretype + "&port=" + encodeURIComponent(serialport) + "&name=" + encodeURIComponent(name) + "&enabled=" + bEnabled + "&datatimeout=" + datatimeout +
+                          "&Mode1=" + Mode1,
                      async: false,
                      dataType: 'json',
                      success: function(data) {
@@ -523,7 +645,17 @@ define(['app'], function (app) {
                      }
                 });
             }
-            else if ((text.indexOf("LAN") >= 0 && text.indexOf("YouLess") == -1 && text.indexOf("ETH8020") == -1 && text.indexOf("Anna") == -1 && text.indexOf("KMTronic") == -1 && text.indexOf("MQTT") == -1 && text.indexOf("Integra") == -1))
+            else if (
+					(text.indexOf("LAN") >= 0 &&
+					text.indexOf("YouLess") == -1 &&
+					text.indexOf("ETH8020") == -1 &&
+					text.indexOf("Anna") == -1 &&
+					text.indexOf("KMTronic") == -1
+					&& text.indexOf("MQTT") == -1 &&
+					text.indexOf("Integra") == -1 &&
+					text.indexOf("Razberry") == -1
+					)
+				)
             {
                 var address=$("#hardwarecontent #divremote #tcpaddress").val();
                 if (address=="")
@@ -623,7 +755,16 @@ define(['app'], function (app) {
                      }
                 });
             }
-            else if ((text.indexOf("Domoticz") >= 0) || (text.indexOf("Harmony") >= 0) || (text.indexOf("ETH8020") >= 0) || (text.indexOf("Anna") >= 0) || (text.indexOf("KMTronic") >= 0) || (text.indexOf("MQTT") >= 0) || (text.indexOf("Logitech Media Server") >= 0))
+            else if (
+				(text.indexOf("Domoticz") >= 0) ||
+				(text.indexOf("Harmony") >= 0) ||
+				(text.indexOf("ETH8020") >= 0) ||
+				(text.indexOf("Anna") >= 0) ||
+				(text.indexOf("KMTronic") >= 0) ||
+				(text.indexOf("MQTT") >= 0) ||
+				(text.indexOf("Logitech Media Server") >= 0) ||
+				(text.indexOf("Razberry") >= 0)
+				)
             {
                 var address=$("#hardwarecontent #divremote #tcpaddress").val();
                 if (address=="")
@@ -644,9 +785,12 @@ define(['app'], function (app) {
                 }
                 var username=$("#hardwarecontent #divlogin #username").val();
                 var password = encodeURIComponent($("#hardwarecontent #divlogin #password").val());
-                var extra = encodeURIComponent($("#hardwarecontent #divmqtt #filename").val());
-                var mode1 = $("#hardwarecontent #divmqtt #combotopicselect").val();
-
+                var extra = "";
+                var mode1 = "";
+				if (text.indexOf("MQTT") >= 0) {
+					extra = encodeURIComponent($("#hardwarecontent #divmqtt #filename").val());
+					mode1 = $("#hardwarecontent #divmqtt #combotopicselect").val();
+				}
                 if ((text.indexOf("Harmony") >= 0) && (username == "")) {
                     ShowNotify($.t('Please enter a username!'), 2500, true);
                     return;
@@ -800,6 +944,46 @@ define(['app'], function (app) {
                      "&name=" + encodeURIComponent(name) +
                      "&enabled=" + bEnabled +
                      "&datatimeout=" + datatimeout,
+                     async: false,
+                     dataType: 'json',
+                     success: function(data) {
+                        RefreshHardwareTable();
+                     },
+                     error: function(){
+                            ShowNotify($.t('Problem adding hardware!'), 2500, true);
+                     }
+                });
+            }
+			else if (text.indexOf("MyHome OpenWebNet") >= 0)
+            {
+                var address=$("#hardwarecontent #divremote #tcpaddress").val();
+                if (address=="")
+                {
+                    ShowNotify($.t('Please enter an Address!'), 2500, true);
+                    return;
+                }
+                var port=$("#hardwarecontent #divremote #tcpport").val();
+                if (port=="")
+                {
+                    ShowNotify($.t('Please enter an Port!'), 2500, true);
+                    return;
+                }
+                var intRegex = /^\d+$/;
+                if(!intRegex.test(port)) {
+                    ShowNotify($.t('Please enter an Valid Port!'), 2500, true);
+                    return;
+                }
+                /*var username=$("#hardwarecontent #hardwareparamsphilipshue #username").val();
+
+                if (username == "") {
+                    ShowNotify($.t('Please enter a username!'), 2500, true);
+                    return;
+                }*/
+
+                $.ajax({
+                     url: "json.htm?type=command&param=addhardware&htype=" + hardwaretype + "&address=" + address + "&port=" + port +
+					 //"&username=" + encodeURIComponent(username) +
+					 "&name=" + encodeURIComponent(name) + "&enabled=" + bEnabled + "&datatimeout=" + datatimeout,
                      async: false,
                      dataType: 'json',
                      success: function(data) {
@@ -1896,7 +2080,7 @@ define(['app'], function (app) {
         }
 
         /* Start of Panasonic Plugin Code */
-        
+
         PanasonicAddNode = function () {
             var name = $("#hardwarecontent #panasonicnodeparamstable #nodename").val();
             if (name == "") {
@@ -2131,7 +2315,7 @@ define(['app'], function (app) {
         }
 
         /* End of Panasonic Plugin Code */
-        
+
         RefreshLMSNodeTable = function () {
             $('#modal').show();
             $('#updelclr #nodeupdate').attr("class", "btnstyle3-dis");
@@ -2800,9 +2984,12 @@ define(['app'], function (app) {
                         "0": nodeStr,
                         "1": item.Name,
                         "2": item.Description,
-                        "3": item.LastUpdate,
-                        "4": $.t((item.PollEnabled == "true")?"Yes":"No"),
-                        "5": statusImg+'&nbsp;&nbsp;'+healButton,
+                        "3": item.Manufacturer_name,
+                        "4": item.Product_id,
+                        "5": item.Product_type,
+                        "6": item.LastUpdate,
+                        "7": $.t((item.PollEnabled == "true")?"Yes":"No"),
+                        "8": statusImg+'&nbsp;&nbsp;'+healButton,
                     } );
                 });
               }
@@ -2837,7 +3024,7 @@ define(['app'], function (app) {
                             $('#updelclr #nodedelete').attr("class", "btnstyle3");
                             $("#updelclr #nodedelete").attr("href", "javascript:DeleteNode(" + idx + ")");
                         }
-                        $("#hardwarecontent #nodeparamstable #nodename").val(data["1"]);
+                        $("#hardwarecontent #nodeparamstable #nodename").val(data["Name"]);
                         $('#hardwarecontent #nodeparamstable #EnablePolling').prop('checked',(data["PollEnabled"]=="true"));
                         if (iNode==iOwnNodeId) {
                             $("#hardwarecontent #nodeparamstable #trEnablePolling").hide();
@@ -3088,6 +3275,23 @@ define(['app'], function (app) {
           });
         }
 
+		SendOTGWCommand = function()
+		{
+			var idx=$('#hardwarecontent #idx').val();
+			var cmnd = $('#hardwarecontent #otgwcmnd').val();
+            $.ajax({
+                url: "json.htm?type=command&param=sendopenthermcommand" +
+                    "&idx=" + idx +
+                    "&cmnd=" + cmnd,
+                 async: false,
+                 dataType: 'json',
+                 success: function(data) {
+                 },
+                 error: function(){
+                 }
+            });
+		}
+
         EditOpenTherm = function(idx,name,Mode1,Mode2,Mode3,Mode4,Mode5,Mode6)
         {
         //Mode1=Outside Temperature Sensor DeviceIdx, 0=Not Using
@@ -3109,6 +3313,11 @@ define(['app'], function (app) {
                 e.preventDefault();
                 SetOpenThermSettings();
             });
+            $('#hardwarecontent #buttonsendotgwcmnd').click(function (e) {
+                e.preventDefault();
+                SendOTGWCommand();
+            });
+
 
             //Get Temperature Sensors
             $.ajax({
@@ -3342,10 +3551,7 @@ define(['app'], function (app) {
 
                     var SerialName="Unknown!?";
                     var intport=0;
-                    if (item.Type == 67) { // DomoticzInternal
-                        SerialName="";
-                    }
-                    else if ((HwTypeStr.indexOf("LAN") >= 0)||(HwTypeStr.indexOf("Domoticz") >= 0) ||(HwTypeStr.indexOf("Harmony") >= 0)||(HwTypeStr.indexOf("Philips Hue") >= 0))
+                    if ((HwTypeStr.indexOf("LAN") >= 0)||(HwTypeStr.indexOf("Domoticz") >= 0) ||(HwTypeStr.indexOf("Harmony") >= 0)||(HwTypeStr.indexOf("Philips Hue") >= 0))
                     {
                         SerialName=item.Port;
                     }
@@ -3357,7 +3563,7 @@ define(['app'], function (app) {
                     {
                         SerialName="System";
                     }
-                    else if (item.Type == 13)
+                    else if ((item.Type == 13)||(item.Type == 71))
                     {
                         SerialName="I2C";
                     }
@@ -3573,7 +3779,16 @@ define(['app'], function (app) {
                         $('#hardwarecontent #hardwareparamstable #combodatatimeout').val(data["DataTimeout"]);
 
                         UpdateHardwareParamControls();
-                        if ((data["Type"].indexOf("Domoticz Internal") >= 0)||(data["Type"].indexOf("TE923") >= 0)||(data["Type"].indexOf("Volcraft") >= 0)||(data["Type"].indexOf("1-Wire") >= 0)||(data["Type"].indexOf("BMP085") >= 0)||(data["Type"].indexOf("Dummy") >= 0)||(data["Type"].indexOf("System Alive") >= 0) ||(data["Type"].indexOf("PiFace") >= 0)||(data["Type"].indexOf("Tellstick") >= 0))
+
+                        if ((data["Type"].indexOf("TE923") >= 0)||
+                           (data["Type"].indexOf("Volcraft") >= 0)||
+                           (data["Type"].indexOf("1-Wire") >= 0)||
+                           (data["Type"].indexOf("BMP085") >= 0)||
+                           (data["Type"].indexOf("HTU21D") >= 0)||
+                           (data["Type"].indexOf("Dummy") >= 0)||
+                           (data["Type"].indexOf("System Alive") >= 0)||
+                           (data["Type"].indexOf("PiFace") >= 0)||
+                           (data["Type"].indexOf("Tellstick") >= 0))
                         {
                             //nothing to be set
                         }
@@ -3582,6 +3797,10 @@ define(['app'], function (app) {
                             if (data["Type"].indexOf("S0 Meter") >= 0)
                             {
                                 $("#hardwarecontent #divremote #tcpaddress").val(data["Address"]);
+                            }
+                            if (data["Type"].indexOf("MySensors") >= 0)
+                            {
+                                $("#hardwarecontent #divbaudratemysensors #combobaudrate").val(data["Mode1"]);
                             }
                         }
                         else if (((data["Type"].indexOf("LAN") >= 0) && (data["Type"].indexOf("YouLess") == -1) && (data["Type"].indexOf("Satel") == -1)) ||(data["Type"].indexOf("Domoticz") >= 0) ||(data["Type"].indexOf("Harmony") >= 0)) {
@@ -3614,7 +3833,8 @@ define(['app'], function (app) {
                             $("#hardwarecontent #hardwareparamswinddelen #combomillselect").val(data["Mode1"]);
                             $("#hardwarecontent #hardwareparamswinddelen #nrofwinddelen").val(data["Port"]);
                         }
-                        else if (data["Type"].indexOf("MQTT") >= 0) {
+
+                        if (data["Type"].indexOf("MQTT") >= 0) {
                             $("#hardwarecontent #hardwareparamsmqtt #filename").val(data["Extra"]);
                             $("#hardwarecontent #hardwareparamsmqtt #combotopicselect").val(data["Mode1"]);
                         }
@@ -3632,6 +3852,7 @@ define(['app'], function (app) {
                             (data["Type"].indexOf("Netatmo") >= 0)||
                             (data["Type"].indexOf("Thermosmart") >= 0) ||
 							(data["Type"].indexOf("Logitech Media Server") >= 0) ||
+							(data["Type"].indexOf("Razberry") >= 0) ||
 							(data["Type"].indexOf("Comm5") >= 0)
                             )
                         {
@@ -3693,23 +3914,20 @@ define(['app'], function (app) {
             $("#hardwarecontent #username").show();
             $("#hardwarecontent #lblusername").show();
 
+            $("#hardwarecontent #divbaudratemysensors").hide();
             $("#hardwarecontent #divlocation").hide();
             $("#hardwarecontent #divphilipshue").hide();
             $("#hardwarecontent #divwinddelen").hide();
             $("#hardwarecontent #divmqtt").hide();
             $("#hardwarecontent #divsolaredgeapi").hide();
 
-            if (text.indexOf("Domoticz Internal") >= 0) {
-                $("#hardwarecontent #hardwareparamstable #enabled").prop('disabled', true);
-                $("#hardwarecontent #hardwareparamstable #hardwarename").prop('disabled', true);
-                $("#hardwarecontent #hardwareparamstable #combotype").prop('disabled', true);
-                $("#hardwarecontent #hardwareparamstable #combodatatimeout").prop('disabled', true);
-                $("#hardwarecontent #divserial").hide();
-                $("#hardwarecontent #divremote").hide();
-                $("#hardwarecontent #divlogin").hide();
-                $("#hardwarecontent #divunderground").hide();
-            }
-            else if ((text.indexOf("TE923") >= 0)||(text.indexOf("Volcraft") >= 0)||(text.indexOf("BMP085") >= 0)||(text.indexOf("Dummy") >= 0)||(text.indexOf("System Alive") >= 0)||(text.indexOf("PiFace") >= 0))
+            if ((text.indexOf("TE923") >= 0)||
+               (text.indexOf("Volcraft") >= 0)||
+               (text.indexOf("BMP085") >= 0)||
+               (text.indexOf("HTU21D") >= 0)||
+               (text.indexOf("Dummy") >= 0)||
+               (text.indexOf("System Alive") >= 0)||
+               (text.indexOf("PiFace") >= 0))
             {
                 $("#hardwarecontent #divserial").hide();
                 $("#hardwarecontent #divremote").hide();
@@ -3718,6 +3936,10 @@ define(['app'], function (app) {
             }
             else if (text.indexOf("USB") >= 0)
             {
+                if (text.indexOf("MySensors") >= 0)
+                {
+                    $("#hardwarecontent #divbaudratemysensors").show();
+                }
                 $("#hardwarecontent #divserial").show();
                 $("#hardwarecontent #divremote").hide();
                 $("#hardwarecontent #divlogin").hide();
@@ -3811,6 +4033,14 @@ define(['app'], function (app) {
                 $("#hardwarecontent #divlogin").show();
                 $("#hardwarecontent #hardwareparamsremote #tcpport").val(9000);
             }
+			else if (text.indexOf("MyHome OpenWebNet") >= 0)
+            {
+                $("#hardwarecontent #divserial").hide();
+                $("#hardwarecontent #divremote").show();
+                $("#hardwarecontent #divlogin").hide();
+                $("#hardwarecontent #divunderground").hide();
+                $("#hardwarecontent #hardwareparamsremote #tcpport").val(20000);
+            }
             else
             {
                 $("#hardwarecontent #divserial").hide();
@@ -3818,7 +4048,13 @@ define(['app'], function (app) {
                 $("#hardwarecontent #divlogin").hide();
                 $("#hardwarecontent #divunderground").hide();
             }
-            if ((text.indexOf("ETH8020") >= 0)||(text.indexOf("Anna") >= 0)||(text.indexOf("MQTT") >= 0)||(text.indexOf("KMTronic Gateway with LAN") >= 0)) {
+            if (
+				(text.indexOf("ETH8020") >= 0) ||
+				(text.indexOf("Anna") >= 0) ||
+				(text.indexOf("MQTT") >= 0) ||
+				(text.indexOf("KMTronic Gateway with LAN") >= 0) ||
+				(text.indexOf("Razberry") >= 0)
+				) {
                 $("#hardwarecontent #divlogin").show();
             }
             if (text.indexOf("MQTT") >= 0)

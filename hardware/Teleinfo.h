@@ -2,7 +2,7 @@
 Domoticz Software : http://domoticz.com/
 File : Teleinfo.h
 Author : Nicolas HILAIRE
-Version : 1.3
+Version : 1.6
 Description : This class manage the Teleinfo Signal
 
 
@@ -11,6 +11,7 @@ History :
 - 2014-10-29 : Add 'EJP' contract (Laurent MEY)
 - 2014-12-13 : Add 'Tempo' contract (Kevin NICOLAS)
 - 2015-06-10 : Fix bug power divided by 2 (Christophe DELPECH)
+- 2016-02-05 : Fix bug power display with 'Tempo' contract (Anthony LAGUERRE)
 */
 
 #pragma once
@@ -18,23 +19,6 @@ History :
 #include "DomoticzHardware.h"
 #include "P1MeterBase.h"
 #include "ASyncSerial.h"
-
-/*
-typedef struct _teleinfoData {
-unsigned char len;
-unsigned char type;
-unsigned char subtype;
-char optTariff[4];
-unsigned long powerusage1;   // normal tariff at power Usage in Wh
-unsigned long powerusage2;   // low tariff at power Usage in Wh
-unsigned long currentPowerSubscribe; //in A
-char currentTariffPeriod[4];
-unsigned long instantCurrentPowerUsage; //in A
-unsigned long maximalCurrentPowerUsage; //in A
-unsigned long apparentPower;   //in VA
-} TeleinfoData;
-*/
-
 #define TELEINFO_BAUD_RATE         1200
 #define TELEINFO_PARITY            boost::asio::serial_port_base::parity::even
 #define TELEINFO_CARACTER_SIZE      7
@@ -47,13 +31,6 @@ class Teleinfo : public CDomoticzHardwareBase, AsyncSerial
 		ID = 0,
 		STD,
 	} MatchType;
-
-	//typedef enum {
-	//   TELEINFO_OPTION_BASE,   //single tariff
-	//   TELEINFO_OPTION_HC,      //double tariff (low and normal)
-	//   TELEINFO_OPTION_EJP,      //EJP Option,  (test)
-	//   TELEINFO_OPTION_TEMPO,   //Tempo option,  (test)
-	//} Option;
 
 	typedef enum {
 		TELEINFO_TYPE_ADCO,
@@ -91,6 +68,8 @@ public:
 	std::string m_szSerialPort;
 
 	P1Power   m_p1power;
+	P1Power   m_p2power;
+	P1Power   m_p3power;
 	bool WriteToHardware(const char *pdata, const unsigned char length);
 private:
 	bool StartHardware();
@@ -108,7 +87,14 @@ private:
 	boost::asio::serial_port_base::stop_bits m_iOptStop;
 
 	int m_counter;
+	unsigned long m_Power_USAGE_IINST;
+	unsigned long m_Power_USAGE_IINST_JW;
+	unsigned long m_Power_USAGE_IINST_JR;
 	bool m_bLabel_PAPP_Exist;
+	bool m_bLabel_PTEC_JB;
+	bool m_bLabel_PTEC_JW;
+	bool m_bLabel_PTEC_JR;
+	bool m_bLabel_Tempo;
 	static const int NumberOfFrameToSendOne = 8;
 
 	void Init();

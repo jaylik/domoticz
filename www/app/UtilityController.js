@@ -76,6 +76,10 @@ define(['app'], function (app) {
 				if ($('#utilitycontent #timerparamstable #ChkSun').is(":checked"))
 					tsettings.days|=0x40;
 			}
+			tsettings.mday=$("#utilitycontent #timerparamstable #days").val();
+			tsettings.month=$("#utilitycontent #timerparamstable #months").val();
+			tsettings.occurence=$("#utilitycontent #timerparamstable #occurence").val();
+			tsettings.weekday=$("#utilitycontent #timerparamstable #weekdays").val();
 			return tsettings;
 		}
 
@@ -96,6 +100,34 @@ define(['app'], function (app) {
 					return;
 				}
 			}
+			else if ((tsettings.timertype==6) || (tsettings.timertype==7)) {
+				tsettings.days = 0x80;
+			}
+			else if (tsettings.timertype==10) {
+				tsettings.days = 0x80;
+				if (tsettings.mday>28) {
+					ShowNotify($.t('Not al months have this amount of days, some months will be skipped!'), 2500, true);
+				}
+			}
+			else if (tsettings.timertype==12) {
+				tsettings.days = 0x80;
+				if ((tsettings.month==4 || tsettings.month==6 || tsettings.month==9 || tsettings.month==11) && tsettings.mday==31) {
+					ShowNotify($.t('This month does not have 31 days!'), 2500, true);
+					return;
+				}
+				if (tsettings.month==2) {
+					if (tsettings.mday>29) {
+						ShowNotify($.t('February does not have more than 29 days!'), 2500, true);
+						return;
+					}
+					if (tsettings.mday==29) {
+						ShowNotify($.t('Not all years have this date, some years will be skipped!'), 2500, true);
+					}
+				}
+			}
+			else if ((tsettings.timertype==11) || (tsettings.timertype==13)) {
+				tsettings.days = Math.pow(2, tsettings.weekday);
+			}
 			else if (tsettings.days==0)
 			{
 				ShowNotify($.t('Please select some days!'), 2500, true);
@@ -109,7 +141,10 @@ define(['app'], function (app) {
 							"&hour=" + tsettings.hour +
 							"&min=" + tsettings.min +
 							"&tvalue=" + tsettings.tvalue +
-							"&days=" + tsettings.days,
+							"&days=" + tsettings.days +
+							"&mday=" + tsettings.mday +
+							"&month=" + tsettings.month +
+							"&occurence=" + tsettings.occurence,
 				 async: false, 
 				 dataType: 'json',
 				 success: function(data) {
@@ -139,6 +174,34 @@ define(['app'], function (app) {
 					return;
 				}
 			}
+			else if ((tsettings.timertype==6) || (tsettings.timertype==7)) {
+				tsettings.days = 0x80;
+			}
+			else if (tsettings.timertype==10) {
+				tsettings.days = 0x80;
+				if (tsettings.mday>28) {
+					ShowNotify($.t('Not al months have this amount of days, some months will be skipped!'), 2500, true);
+				}
+			}
+			else if (tsettings.timertype==12) {
+				tsettings.days = 0x80;
+				if ((tsettings.month==4 || tsettings.month==6 || tsettings.month==9 || tsettings.month==11) && tsettings.mday==31) {
+					ShowNotify($.t('This month does not have 31 days!'), 2500, true);
+					return;
+				}
+				if (tsettings.month==2) {
+					if (tsettings.mday>29) {
+						ShowNotify($.t('February does not have more than 29 days!'), 2500, true);
+						return;
+					}
+					if (tsettings.mday==29) {
+						ShowNotify($.t('Not all years have this date, some years will be skipped!'), 2500, true);
+					}
+				}
+			}
+			else if ((tsettings.timertype==11) || (tsettings.timertype==13)) {
+				tsettings.days = Math.pow(2, tsettings.weekday);
+			}
 			else if (tsettings.days==0)
 			{
 				ShowNotify($.t('Please select some days!'), 2500, true);
@@ -152,7 +215,10 @@ define(['app'], function (app) {
 							"&hour=" + tsettings.hour +
 							"&min=" + tsettings.min +
 							"&tvalue=" + tsettings.tvalue +
-							"&days=" + tsettings.days,
+							"&days=" + tsettings.days +
+							"&mday=" + tsettings.mday +
+							"&month=" + tsettings.month +
+							"&occurence=" + tsettings.occurence,
 				 async: false, 
 				 dataType: 'json',
 				 success: function(data) {
@@ -209,7 +275,7 @@ define(['app'], function (app) {
 					
 					var DayStr = "";
 					var DayStrOrig = "";
-					if (item.Type!=5) {
+					if ((item.Type<=4) || (item.Type==8) || (item.Type==9)) {
 						var dayflags = parseInt(item.Days);
 						if (dayflags & 0x80)
 							DayStrOrig="Everyday";
@@ -248,12 +314,31 @@ define(['app'], function (app) {
 							}
 						}
 					}
+					else if (item.Type==10) {
+						DayStrOrig="Monthly on Day " + item.MDay;
+					}
+					else if (item.Type==11) {
+						var Weekday = Math.log2(parseInt(item.Days));
+						DayStrOrig="Monthly on " + $.myglobals.OccurenceStr[item.Occurence-1] + " " + $.myglobals.WeekdayStr[Weekday];
+					}
+					else if (item.Type==12) {
+						DayStrOrig="Yearly on " + item.MDay + " " + $.myglobals.MonthStr[item.Month-1];
+					}
+					else if (item.Type==13) {
+						var Weekday = Math.log2(parseInt(item.Days));
+						DayStrOrig="Yearly on " + $.myglobals.OccurenceStr[item.Occurence-1] + " " + $.myglobals.WeekdayStr[Weekday] + " in " + $.myglobals.MonthStr[item.Month-1];
+					}
+
 					//translate daystring
-					var res = DayStrOrig.split(", ");
+					var splitstr = ", ";
+					if (item.Type > 5) {
+						splitstr = " ";
+					}
+					var res = DayStrOrig.split(splitstr);
 					$.each(res, function(i,item){
 						DayStr+=$.t(item);
 						if (i!=res.length-1) {
-							DayStr+=", ";
+							DayStr+=splitstr;
 						}
 					});
 					
@@ -271,7 +356,12 @@ define(['app'], function (app) {
 						"2": item.Date,
 						"3": item.Time,
 						"4": item.Temperature,
-						"5": DayStr
+						"5": DayStr,
+						"6": "",
+						"7": item.Month,
+						"8": item.MDay,
+						"9": item.Occurence,
+						"10": Math.log2(parseInt(item.Days))
 					} );
 				});
 			  }
@@ -312,10 +402,59 @@ define(['app'], function (app) {
 							$("#utilitycontent #timerparamstable #ssdate").val(data["2"]);
 							$("#utilitycontent #timerparamstable #rdate").show();
 							$("#utilitycontent #timerparamstable #rnorm").hide();
+							$("#utilitycontent #timerparamstable #rdays").hide();
+							$("#utilitycontent #timerparamstable #roccurence").hide();
+							$("#utilitycontent #timerparamstable #rmonths").hide();
+						}
+						else if ((timerType==6) || (timerType==7)) {
+							$("#utilitycontent #timerparamstable #rdate").hide();
+							$("#utilitycontent #timerparamstable #rnorm").hide();
+							$("#utilitycontent #timerparamstable #rdays").hide();
+							$("#utilitycontent #timerparamstable #roccurence").hide();
+							$("#utilitycontent #timerparamstable #rmonths").hide();
+						}
+						else if (timerType==10) {
+							$("#utilitycontent #timerparamstable #days").val(data["8"]);
+							$("#utilitycontent #timerparamstable #rdate").hide();
+							$("#utilitycontent #timerparamstable #rnorm").hide();
+							$("#utilitycontent #timerparamstable #rdays").show();
+							$("#utilitycontent #timerparamstable #roccurence").hide();
+							$("#utilitycontent #timerparamstable #rmonths").hide();
+						}
+						else if (timerType==11) {
+							$("#utilitycontent #timerparamstable #occurence").val(data["9"]);
+							$("#utilitycontent #timerparamstable #weekdays").val(data["10"]);
+							$("#utilitycontent #timerparamstable #rdate").hide();
+							$("#utilitycontent #timerparamstable #rnorm").hide();
+							$("#utilitycontent #timerparamstable #rdays").hide();
+							$("#utilitycontent #timerparamstable #roccurence").show();
+							$("#utilitycontent #timerparamstable #rmonths").hide();
+						}
+						else if (timerType==12) {
+							$("#utilitycontent #timerparamstable #months").val(data["7"]);
+							$("#utilitycontent #timerparamstable #days").val(data["8"]);
+							$("#utilitycontent #timerparamstable #rdate").hide();
+							$("#utilitycontent #timerparamstable #rnorm").hide();
+							$("#utilitycontent #timerparamstable #rdays").show();
+							$("#utilitycontent #timerparamstable #roccurence").hide();
+							$("#utilitycontent #timerparamstable #rmonths").show();
+						}
+						else if (timerType==13) {
+							$("#utilitycontent #timerparamstable #months").val(data["7"]);
+							$("#utilitycontent #timerparamstable #occurence").val(data["9"]);
+							$("#utilitycontent #timerparamstable #weekdays").val(data["10"]);
+							$("#utilitycontent #timerparamstable #rdate").hide();
+							$("#utilitycontent #timerparamstable #rnorm").hide();
+							$("#utilitycontent #timerparamstable #rdays").hide();
+							$("#utilitycontent #timerparamstable #roccurence").show();
+							$("#utilitycontent #timerparamstable #rmonths").show();
 						}
 						else {
 							$("#utilitycontent #timerparamstable #rdate").hide();
 							$("#utilitycontent #timerparamstable #rnorm").show();
+							$("#utilitycontent #timerparamstable #rdays").hide();
+							$("#utilitycontent #timerparamstable #roccurence").hide();
+							$("#utilitycontent #timerparamstable #rmonths").hide();
 						}
 						
 						var disableDays=false;
@@ -390,6 +529,9 @@ define(['app'], function (app) {
 			$('#utilitycontent').i18n();
 			$("#utilitycontent #timerparamstable #rdate").hide();
 			$("#utilitycontent #timerparamstable #rnorm").show();
+			$("#utilitycontent #timerparamstable #rdays").hide();
+			$("#utilitycontent #timerparamstable #roccurence").hide();
+			$("#utilitycontent #timerparamstable #rmonths").hide();
 
 			$rootScope.RefreshTimeAndSun();
 
@@ -416,10 +558,51 @@ define(['app'], function (app) {
 				if (timerType==5) {
 					$("#utilitycontent #timerparamstable #rdate").show();
 					$("#utilitycontent #timerparamstable #rnorm").hide();
+					$("#utilitycontent #timerparamstable #rdays").hide();
+					$("#utilitycontent #timerparamstable #roccurence").hide();
+					$("#utilitycontent #timerparamstable #rmonths").hide();
+				}
+				else if ((timerType==6) || (timerType==7)) {
+					$("#utilitycontent #timerparamstable #rdate").hide();
+					$("#utilitycontent #timerparamstable #rnorm").hide();
+					$("#utilitycontent #timerparamstable #rdays").hide();
+					$("#utilitycontent #timerparamstable #roccurence").hide();
+					$("#utilitycontent #timerparamstable #rmonths").hide();
+				}
+				else if (timerType==10) {
+					$("#utilitycontent #timerparamstable #rdate").hide();
+					$("#utilitycontent #timerparamstable #rnorm").hide();
+					$("#utilitycontent #timerparamstable #rdays").show();
+					$("#utilitycontent #timerparamstable #roccurence").hide();
+					$("#utilitycontent #timerparamstable #rmonths").hide();
+				}
+				else if (timerType==11) {
+					$("#utilitycontent #timerparamstable #rdate").hide();
+					$("#utilitycontent #timerparamstable #rnorm").hide();
+					$("#utilitycontent #timerparamstable #rdays").hide();
+					$("#utilitycontent #timerparamstable #roccurence").show();
+					$("#utilitycontent #timerparamstable #rmonths").hide();
+				}
+				else if (timerType==12) {
+					$("#utilitycontent #timerparamstable #rdate").hide();
+					$("#utilitycontent #timerparamstable #rnorm").hide();
+					$("#utilitycontent #timerparamstable #rdays").show();
+					$("#utilitycontent #timerparamstable #roccurence").hide();
+					$("#utilitycontent #timerparamstable #rmonths").show();
+				}
+				else if (timerType==13) {
+					$("#utilitycontent #timerparamstable #rdate").hide();
+					$("#utilitycontent #timerparamstable #rnorm").hide();
+					$("#utilitycontent #timerparamstable #rdays").hide();
+					$("#utilitycontent #timerparamstable #roccurence").show();
+					$("#utilitycontent #timerparamstable #rmonths").show();
 				}
 				else {
 					$("#utilitycontent #timerparamstable #rdate").hide();
 					$("#utilitycontent #timerparamstable #rnorm").show();
+					$("#utilitycontent #timerparamstable #rdays").hide();
+					$("#utilitycontent #timerparamstable #roccurence").hide();
+					$("#utilitycontent #timerparamstable #rmonths").hide();
 				}
 			});
 
@@ -440,8 +623,9 @@ define(['app'], function (app) {
 			} );
 			$('#timerparamstable #combotimehour >option').remove();
 			$('#timerparamstable #combotimemin >option').remove();
+			$('#timerparamstable #days >option').remove();
 						
-			//fill hour/minute comboboxes
+			//fill hour/minute/days comboboxes
 			for (ii=0; ii<24; ii++)
 			{
 				$('#timerparamstable #combotimehour').append($('<option></option>').val(ii).html($.strPad(ii,2)));  
@@ -449,6 +633,10 @@ define(['app'], function (app) {
 			for (ii=0; ii<60; ii++)
 			{
 				$('#timerparamstable #combotimemin').append($('<option></option>').val(ii).html($.strPad(ii,2)));  
+			}
+			for (ii=1; ii<=31; ii++)
+			{
+				$('#timerparamstable #days').append($('<option></option>').val(ii).html(ii));  
 			}
 		  
 			$("#utilitycontent #timerparamstable #when_1").click(function() {
@@ -522,7 +710,7 @@ define(['app'], function (app) {
 		  $("#dialog-editdistancedevice" ).dialog( "open" );
 		}
 
-		EditMeterDevice = function(idx,name,description,switchtype)
+		EditMeterDevice = function(idx,name,description,switchtype,valuequantity,valueunits)
 		{
 			if (typeof $scope.mytimer != 'undefined') {
 				$interval.cancel($scope.mytimer);
@@ -532,6 +720,25 @@ define(['app'], function (app) {
 		  $("#dialog-editmeterdevice #devicename").val(unescape(name));
 		  $("#dialog-editmeterdevice #devicedescription").val(unescape(description));
 		  $("#dialog-editmeterdevice #combometertype").val(switchtype);
+		  $("#dialog-editmeterdevice #valuequantity").val(unescape(valuequantity));
+		  $("#dialog-editmeterdevice #valueunits").val(unescape(valueunits));
+		  $("#dialog-editmeterdevice #metertable #customcounter").hide();
+		  if (switchtype==3) { //Counter
+			$("#dialog-editmeterdevice #metertable #customcounter").show();
+		  }
+		  
+		  $("#dialog-editmeterdevice #combometertype").change(function() { 
+			$("#dialog-editmeterdevice #metertable #customcounter").hide();
+			var meterType=$("#dialog-editmeterdevice #combometertype").val();
+			if (meterType==3) { //Counter
+				if (($("#dialog-editmeterdevice #valuequantity").val() == "") 
+					&& ($("#dialog-editmeterdevice #valueunits").val() == "")) {
+					$("#dialog-editmeterdevice #valuequantity").val("Count");
+				}
+				$("#dialog-editmeterdevice #metertable #customcounter").show();
+			}
+		  });
+		  
 		  $("#dialog-editmeterdevice" ).i18n();
 		  $("#dialog-editmeterdevice" ).dialog( "open" );
 		}
@@ -692,7 +899,7 @@ define(['app'], function (app) {
 						  status=item.Data;
 						  bigtext=item.Data;
 						}
-						else if ((item.Type == "Energy")||(item.Type == "Current/Energy")||(item.SubType == "kWh")) {
+						else if ((item.Type == "Energy") || (item.Type == "Current/Energy") || (item.Type == "Power") || (item.SubType == "kWh")) {
 							status=item.Data;
 							if (typeof item.CounterToday != 'undefined') {
 								status+=', ' + $.t("Today") + ': ' + item.CounterToday;
@@ -1019,7 +1226,7 @@ define(['app'], function (app) {
 					  xhtm+='current48.png" height="48" width="48"></td>\n';
 					  status=item.Data;
 					}
-					else if ((item.Type == "Energy")||(item.Type == "Current/Energy")||(item.SubType == "kWh")) {
+					else if ((item.Type == "Energy") || (item.Type == "Current/Energy") || (item.Type == "Power") || (item.SubType == "kWh")) {
 						if (((item.Type == "Energy")||(item.SubType == "kWh"))&&(item.SwitchTypeVal == 4)) {
 							xhtm+='PV48.png" height="48" width="48"></td>\n';
 						}
@@ -1138,7 +1345,7 @@ define(['app'], function (app) {
 							xhtm+='<a class="btnsmall" onclick="EditUtilityDevice(' + item.idx + ',\'' + escape(item.Name) + '\',\'' + escape(item.Description) + '\');" data-i18n="Edit">Edit</a> ';
 						}
 						else {
-							xhtm+='<a class="btnsmall" onclick="EditMeterDevice(' + item.idx + ',\'' + escape(item.Name) + '\',\'' + escape(item.Description) + '\', ' + item.SwitchTypeVal +');" data-i18n="Edit">Edit</a> ';
+							xhtm+='<a class="btnsmall" onclick="EditMeterDevice(' + item.idx + ',\'' + escape(item.Name) + '\',\'' + escape(item.Description) + '\', ' + item.SwitchTypeVal + ',\'' + escape(item.ValueQuantity) + '\',\'' + escape(item.ValueUnits) + '\');" data-i18n="Edit">Edit</a> ';
 						}
 					}
 				  }
@@ -1184,13 +1391,7 @@ define(['app'], function (app) {
 						xhtm+='<a class="btnsmall" onclick="EditUtilityDevice(' + item.idx + ',\'' + escape(item.Name) + '\',\'' + escape(item.Description) + '\');" data-i18n="Edit">Edit</a> ';
 					}
 				  }
-				  else if ((item.Type == "Current")||(item.Type == "Current/Energy")) {
-					xhtm+='<a class="btnsmall" onclick="ShowCurrentLog(\'#utilitycontent\',\'ShowUtilities\',' + item.idx + ',\'' + escape(item.Name) + '\', ' + item.displaytype + ');" data-i18n="Log">Log</a> ';
-					if (permissions.hasPermission("Admin")) {
-						xhtm+='<a class="btnsmall" onclick="EditUtilityDevice(' + item.idx + ',\'' + escape(item.Name) + '\',\'' + escape(item.Description) + '\');" data-i18n="Edit">Edit</a> ';
-					}
-				  }
-				  else if ((item.Type == "Energy")||(item.SubType == "kWh")||(item.Type == "Current/Energy")) {
+				  else if ((item.Type == "Energy")||(item.SubType == "kWh")||(item.Type == "Power")) {
 						xhtm+='<a class="btnsmall" onclick="ShowCounterLogSpline(\'#utilitycontent\',\'ShowUtilities\',' + item.idx + ',\'' + escape(item.Name) + '\', ' + item.SwitchTypeVal + ');" data-i18n="Log">Log</a> ';
 						if (permissions.hasPermission("Admin")) {
 							if ((item.Type == "Energy")||(item.SubType == "kWh")) {
@@ -1199,6 +1400,12 @@ define(['app'], function (app) {
 								xhtm+='<a class="btnsmall" onclick="EditUtilityDevice(' + item.idx + ',\'' + escape(item.Name) + '\',\'' + escape(item.Description) + '\');" data-i18n="Edit">Edit</a> ';
 							}
 						}
+				  }
+                else if ((item.Type == "Current")||(item.Type == "Current/Energy")) {
+					xhtm+='<a class="btnsmall" onclick="ShowCurrentLog(\'#utilitycontent\',\'ShowUtilities\',' + item.idx + ',\'' + escape(item.Name) + '\', ' + item.displaytype + ');" data-i18n="Log">Log</a> ';
+					if (permissions.hasPermission("Admin")) {
+						xhtm+='<a class="btnsmall" onclick="EditUtilityDevice(' + item.idx + ',\'' + escape(item.Name) + '\',\'' + escape(item.Description) + '\');" data-i18n="Edit">Edit</a> ';
+					}
 				  }
 				  else if ((item.Type == "Thermostat")&&(item.SubType=="SetPoint")) {
 						if (permissions.hasPermission("Admin")) {
@@ -1389,6 +1596,9 @@ define(['app'], function (app) {
 
 			$.myglobals = {
 				TimerTypesStr : [],
+				OccurenceStr : [],
+				MonthStr : [],
+				WeekdayStr : [],
 				SelectedTimerIdx: 0
 			};
 
@@ -1396,6 +1606,15 @@ define(['app'], function (app) {
 
 			$('#timerparamstable #combotype > option').each(function() {
 						 $.myglobals.TimerTypesStr.push($(this).text());
+			});
+			$('#timerparamstable #occurence > option').each(function() {
+						 $.myglobals.OccurenceStr.push($(this).text());
+			});
+			$('#timerparamstable #months > option').each(function() {
+						 $.myglobals.MonthStr.push($(this).text());
+			});
+			$('#timerparamstable #weekdays > option').each(function() {
+						 $.myglobals.WeekdayStr.push($(this).text());
 			});
 
 			var dialog_editutilitydevice_buttons = {};
@@ -1517,15 +1736,28 @@ define(['app'], function (app) {
 			var dialog_editmeterdevice_buttons = {};
 			dialog_editmeterdevice_buttons[$.t("Update")]=function() {
 				  var bValid = true;
+				  var devOptionsParam = [], devOptions = [];
+				  var meterType=$("#dialog-editmeterdevice #combometertype").val();
 				  bValid = bValid && checkLength( $("#dialog-editmeterdevice #devicename"), 2, 100 );
 				  if ( bValid ) {
+					  if (meterType==3) //Counter
+					  {
+						devOptions.push("ValueQuantity:");
+						devOptions.push($("#dialog-editmeterdevice #valuequantity").val());
+						devOptions.push(";");
+						devOptions.push("ValueUnits:");
+						devOptions.push($("#dialog-editmeterdevice #valueunits").val());
+						devOptions.push(";");
+						devOptionsParam.push(devOptions.join(''));
+					  }
 					  $( this ).dialog( "close" );
 					  $.ajax({
 						 url: "json.htm?type=setused&idx=" + $.devIdx + 
 							'&name=' + encodeURIComponent($("#dialog-editmeterdevice #devicename").val()) + 
 							'&description=' + encodeURIComponent($("#dialog-editmeterdevice #devicedescription").val()) + 
-							'&switchtype=' + $("#dialog-editmeterdevice #combometertype").val() + 
-							'&used=true',
+							'&switchtype=' + meterType + 
+							'&used=true' +
+							'&options=' + btoa(encodeURIComponent(devOptionsParam.join(''))), // encode before b64 to prevent from character encoding issue
 						 async: false, 
 						 dataType: 'json',
 						 success: function(data) {

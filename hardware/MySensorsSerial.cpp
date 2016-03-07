@@ -17,18 +17,26 @@
 
 #define RETRY_DELAY 30
 
-MySensorsSerial::MySensorsSerial(const int ID, const std::string& devname):
+MySensorsSerial::MySensorsSerial(const int ID, const std::string& devname, const int Mode1):
 m_retrycntr(RETRY_DELAY),
 m_stoprequested(false)
 {
-	m_iBaudRate = 115200;
+	switch (Mode1)
+	{
+	case 1: // Arduino Pro 3.3V and SenseBender are running on 8 MHz, and the highest reliable baudrate is 38400
+		m_iBaudRate = 38400;
+		break;
+	default:
+		m_iBaudRate = 115200;
+		break;
+	}
 	m_szSerialPort = devname;
 	m_HwdID=ID;
 }
 
 MySensorsSerial::~MySensorsSerial()
 {
-	clearReadCallback();
+
 }
 
 bool MySensorsSerial::StartHardware()
@@ -54,19 +62,7 @@ bool MySensorsSerial::StopHardware()
 		m_thread->join();
 	// Wait a while. The read thread might be reading. Adding this prevents a pointer error in the async serial class.
 	sleep_milliseconds(10);
-	if (isOpen())
-	{
-		try {
-			clearReadCallback();
-			close();
-			doClose();
-			setErrorStatus(true);
-		}
-		catch (...)
-		{
-			//Don't throw from a Stop command
-		}
-	}
+	terminate();
 	m_bIsStarted = false;
 	return true;
 }

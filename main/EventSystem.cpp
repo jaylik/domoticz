@@ -1902,6 +1902,13 @@ bool CEventSystem::parseBlocklyActions(const std::string &Actions, const std::st
 				variableNo = deviceName.substr(9);
 				deviceName = "0";
 			}
+			else if (deviceName.find("SendCamera:") == 0)
+			{
+				if (!atoi(deviceName.substr(11).c_str()))
+					return false;
+				ScheduleEvent(deviceName, doWhat, eventName);
+				return true;
+			}
 
 			int deviceNo = atoi(deviceName.c_str());
 			if (deviceNo && !isScene && !isVariable) {
@@ -1956,7 +1963,7 @@ bool CEventSystem::parseBlocklyActions(const std::string &Actions, const std::st
 			else {
 				std::string devNameNoQuotes = deviceName.substr(1, deviceName.size() - 2);
 				if (devNameNoQuotes == "SendNotification") {
-					std::string subject(""), body(""), priority("0"), sound("");
+					std::string subject, body, priority("0"), sound;
 					std::vector<std::string> aParam;
 					StringSplit(doWhat, "#", aParam);
 					subject = body = aParam[0];
@@ -1984,7 +1991,7 @@ bool CEventSystem::parseBlocklyActions(const std::string &Actions, const std::st
 					actionsDone = true;
 				}
 				else if (devNameNoQuotes == "SendEmail") {
-					std::string subject(""), body(""), to("");
+					std::string subject, body, to;
 					std::vector<std::string> aParam;
 					StringSplit(doWhat, "#", aParam);
 					if (aParam.size() !=3 )
@@ -2639,8 +2646,17 @@ void CEventSystem::EvaluateLua(const std::string &reason, const std::string &fil
 		lua_rawset(lua_state, -3);
 	}
 	lua_setglobal(lua_state, "otherdevices_svalues");
+	lua_createtable(lua_state, (int)m_devicestates.size(), 0);
+	typedef std::map<unsigned long long, _tDeviceStatus>::iterator it_type;
+	for (it_type iterator = m_devicestates.begin(); iterator != m_devicestates.end(); ++iterator)
+	{
+		_tDeviceStatus sitem = iterator->second;
+		lua_pushstring(lua_state, sitem.deviceName.c_str());
+		lua_pushnumber(lua_state, (lua_Number)sitem.ID);
+		lua_rawset(lua_state, -3);
+	}
+	lua_setglobal(lua_state, "otherdevices_idx");
 	devicestatesMutexLock2.unlock();
-
 	lua_createtable(lua_state, (int)m_uservariables.size(), 0);
 
 	typedef std::map<unsigned long long, _tUserVariable>::iterator it_var;
@@ -2853,8 +2869,8 @@ bool CEventSystem::processLuaCommand(lua_State *lua_state, const std::string &fi
 	if (std::string(lua_tostring(lua_state, -2)) == "SendNotification")
 	{
 		std::string luaString = lua_tostring(lua_state, -1);
-		std::string subject(""), body(""), priority("0"), sound("");
-		std::string extraData("");
+		std::string subject, body, priority("0"), sound;
+		std::string extraData;
 		std::vector<std::string> aParam;
 		StringSplit(luaString, "#", aParam);
 		subject = body = aParam[0];
@@ -2875,7 +2891,7 @@ bool CEventSystem::processLuaCommand(lua_State *lua_state, const std::string &fi
 	}
 	else if (std::string(lua_tostring(lua_state, -2)) == "SendEmail") {
 		std::string luaString = lua_tostring(lua_state, -1);
-		std::string subject(""), body(""), to("");
+		std::string subject, body, to;
 		std::vector<std::string> aParam;
 		StringSplit(luaString, "#", aParam);
 		if (aParam.size() != 3)
@@ -3041,6 +3057,7 @@ void CEventSystem::UpdateDevice(const std::string &DevParams)
 		case pTypeLighting4:
 		case pTypeLighting5:
 		case pTypeLighting6:
+		case pTypeFan:
 		case pTypeLimitlessLights:
 		case pTypeSecurity1:
 		case pTypeSecurity2:
@@ -3124,8 +3141,10 @@ void CEventSystem::WriteToLog(const std::string &devNameNoQuotes, const std::str
 
 bool CEventSystem::ScheduleEvent(std::string deviceName, const std::string &Action, const std::string &eventName)
 {
+	std::vector<std::vector<std::string> > result;
 	bool isScene = false;
 	int sceneType = 0;
+
 	if ((deviceName.find("Scene:") == 0) || (deviceName.find("Group:") == 0))
 	{
 		isScene = true;
@@ -3135,8 +3154,34 @@ bool CEventSystem::ScheduleEvent(std::string deviceName, const std::string &Acti
 		}
 		deviceName = deviceName.substr(6);
 	}
+	else if (deviceName.find("SendCamera:") == 0)
+	{
+		deviceName = deviceName.substr(11);
+		result = m_sql.safe_query("SELECT Name FROM Cameras WHERE (ID == '%q')", deviceName.c_str());
+		if (result.empty())
+			return false;
 
-	std::vector<std::vector<std::string> > result;
+		std::string cAction = Action;
+		int delay = 0;
+		size_t aFind = Action.find(" AFTER ");
+		if ((aFind > 0) && (aFind != std::string::npos)) {
+			std::string delayString = Action.substr(aFind + 7);
+			std::string newAction = Action.substr(0, aFind);
+			delay = atoi(delayString.c_str());
+			cAction = newAction;
+		}
+		StripQuotes(cAction);
+
+
+		std::string subject = cAction;
+		if (delay == 0)
+		{
+			m_mainworker.m_cameras.EmailCameraSnapshot(deviceName, subject);
+		}
+		else
+			m_sql.AddTaskItem(_tTaskItem::EmailCameraSnapshot(delay, deviceName, subject));
+		return true;
+	}
 
 	if (isScene) {
 		result = m_sql.safe_query("SELECT ID FROM Scenes WHERE (Name == '%q')",
@@ -3216,7 +3261,7 @@ bool CEventSystem::ScheduleEvent(int deviceID, std::string Action, bool isScene,
 		CDomoticzHardwareBase *pBaseHardware = m_mainworker.GetHardwareByType(HTYPE_Kodi);
 		if (pBaseHardware != NULL)
 		{
-			CKodi			*pHardware = (CKodi*)pBaseHardware;
+			CKodi			*pHardware = reinterpret_cast<CKodi*>(pBaseHardware);
 			std::string		sPlayList = sParams;
 			size_t			iLastSpace = sParams.find_last_of(' ', sParams.length());
 
@@ -3235,7 +3280,7 @@ bool CEventSystem::ScheduleEvent(int deviceID, std::string Action, bool isScene,
 		{
 			pBaseHardware = m_mainworker.GetHardwareByType(HTYPE_LogitechMediaServer);
 			if (pBaseHardware == NULL) return false;
-			CLogitechMediaServer *pHardware = (CLogitechMediaServer*)pBaseHardware;
+			CLogitechMediaServer *pHardware = reinterpret_cast<CLogitechMediaServer*>(pBaseHardware);
 
 			int iPlaylistID = pHardware->GetPlaylistRefID(Action.substr(14).c_str());
 			if (iPlaylistID == 0) return false;
@@ -3251,7 +3296,7 @@ bool CEventSystem::ScheduleEvent(int deviceID, std::string Action, bool isScene,
 		CDomoticzHardwareBase *pBaseHardware = m_mainworker.GetHardwareByType(HTYPE_Kodi);
 		if (pBaseHardware != NULL)
 		{
-			CKodi			*pHardware = (CKodi*)pBaseHardware;
+			CKodi			*pHardware = reinterpret_cast<CKodi*>(pBaseHardware);
 			if (sParams.length() > 0)
 			{
 				_level = atoi(sParams.c_str());
@@ -3266,7 +3311,7 @@ bool CEventSystem::ScheduleEvent(int deviceID, std::string Action, bool isScene,
 		CDomoticzHardwareBase *pBaseHardware = m_mainworker.GetHardwareByType(HTYPE_Kodi);
 		if (pBaseHardware != NULL)
 		{
-			CKodi	*pHardware = (CKodi*)pBaseHardware;
+			CKodi	*pHardware = reinterpret_cast<CKodi*>(pBaseHardware);
 			pHardware->SetExecuteCommand(deviceID, sParams);
 		}
 
@@ -3306,21 +3351,22 @@ bool CEventSystem::ScheduleEvent(int deviceID, std::string Action, bool isScene,
 	}
 	else {
 		//Lights/Switches
+		//Get Device details, check for switch global OnDelay/OffDelay (stored in AddjValue2/AddjValue)
+		std::vector<std::vector<std::string> > result;
+		result = m_sql.safe_query("SELECT SwitchType, AddjValue2 FROM DeviceStatus WHERE (ID == %d)", deviceID);
+		if (result.size() < 1)
+			return false;
+
+		std::vector<std::string> sd = result[0];
+		_eSwitchType switchtype = (_eSwitchType)atoi(sd[0].c_str());
+		int iOnDelay = atoi(sd[1].c_str());
+
 		bool bIsOn = IsLightSwitchOn(Action);
-		if (bIsOn)
-		{
-			//Get Device details, check for switch global OnDelay (stored in AddjValue2)
-			std::vector<std::vector<std::string> > result;
-			result = m_sql.safe_query("SELECT AddjValue2 FROM DeviceStatus WHERE (ID == %d)",
-				deviceID);
-			if (result.size() < 1)
-				return false;
-
-			std::vector<std::string> sd = result[0];
-
-			int iOnDelay = atoi(sd[0].c_str());
-			DelayTime += iOnDelay;
+		if (switchtype == STYPE_Selector) {
+			bIsOn = (_level > 0) ? true : false;
 		}
+		int iDelay = bIsOn ? iOnDelay : 0;
+		DelayTime += iDelay;
 
 		tItem = _tTaskItem::SwitchLightEvent(DelayTime, deviceID, Action, _level, -1, eventName);
 	}
@@ -3650,7 +3696,7 @@ namespace http {
 						if (_levents.find(Name) != _levents.end())
 						{
 							//Duplicate event name, add the ID
-							std::stringstream szQuery("");
+							std::stringstream szQuery;
 							szQuery << Name << " (" << ID << ")";
 							Name = szQuery.str();
 						}
@@ -3707,6 +3753,10 @@ namespace http {
 					return;
 
 				int ii = 0;
+
+				std::string sEditorTheme = "ace/theme/xcode";
+				m_sql.GetPreferencesVar("ScriptEditorTheme", sEditorTheme);
+				root["editortheme"] = sEditorTheme;
 
 				result = m_sql.safe_query("SELECT ID, Name, XMLStatement, Status, Interpreter, Type FROM EventMaster WHERE (ID=='%q')",
 					idx.c_str());
@@ -3804,6 +3854,14 @@ namespace http {
 						_log.Log(LOG_ERROR, "Error writing event actions to database!");
 					}
 					else {
+						std::string sNewEditorTheme = request::findValue(&req, "editortheme");
+						std::string sOldEditorTheme = "ace/theme/xcode";
+						m_sql.GetPreferencesVar("ScriptEditorTheme", sOldEditorTheme);
+						if (sNewEditorTheme.length() && (sNewEditorTheme != sOldEditorTheme))
+						{
+							m_sql.UpdatePreferencesVar("ScriptEditorTheme", sNewEditorTheme);
+						}
+
 						if (interpreter == "Blockly") {
 							const Json::Value array = jsonRoot["eventlogic"];
 							for (int index = 0; index < (int)array.size(); ++index)

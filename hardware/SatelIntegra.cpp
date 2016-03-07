@@ -45,8 +45,6 @@ static Model models[TOT_MODELS] =
 
 #define MAX_LENGTH_OF_ANSWER 63 * 2 + 4 + 1
 
-// const unsigned char allPartitions[4] = { 0xFF, 0xFF, 0xFF, 0xFF };
-
 SatelIntegra::SatelIntegra(const int ID, const std::string &IPAddress, const unsigned short IPPort, const std::string& userCode) :
 	m_modelIndex(-1),
 	m_data32(false),
@@ -57,6 +55,7 @@ SatelIntegra::SatelIntegra(const int ID, const std::string &IPAddress, const uns
 {
 	_log.Log(LOG_STATUS, "Satel Integra: Create instance");
 	m_HwdID = ID;
+	memset(m_newData, 0, sizeof(m_newData));
 
 	// clear last local state of zones and outputs
 	for (unsigned int i = 0; i< 256; ++i)
@@ -111,7 +110,7 @@ SatelIntegra::SatelIntegra(const int ID, const std::string &IPAddress, const uns
 
 SatelIntegra::~SatelIntegra()
 {
-	_log.Log(LOG_NORM, "Satel Integra: Destroy instance");
+	_log.Log(LOG_STATUS, "Satel Integra: Destroy instance");
 }
 
 bool SatelIntegra::StartHardware()
@@ -138,6 +137,11 @@ bool SatelIntegra::StopHardware()
 #endif
 
 	m_stoprequested = true;
+	
+	if (m_thread)
+	{
+		m_thread->join();
+	}
 
 	DestroySocket();
 
@@ -181,8 +185,10 @@ void SatelIntegra::Do_Work()
 	_log.Log(LOG_STATUS, "Satel Integra: fetching changed data");
 #endif
 
-				if (IsNewData())
+				if (ReadNewData())
 				{
+					SetHeartbeatReceived();
+
 					if (m_newData[3] & 8)
 					{
 						ReadAlarm();
@@ -296,7 +302,7 @@ void SatelIntegra::DestroySocket()
 	}
 }
 
-bool SatelIntegra::IsNewData()
+bool SatelIntegra::ReadNewData()
 {
 	unsigned char cmd[1];
 	cmd[0] = 0x7F; // list of new data
@@ -353,7 +359,7 @@ bool SatelIntegra::GetInfo()
 				}
 				else
 				{
-					_log.Log(LOG_STATUS, "Satel Integra: unknown version of ETHM-1");
+					_log.Log(LOG_ERROR, "Satel Integra: unknown version of ETHM-1");
 					return false;
 				}
 			}
@@ -616,15 +622,11 @@ bool SatelIntegra::ReadArmState(const bool firstTime)
 	cmd[0] = 0x0A; // read armed partition
 	if (SendCommand(cmd, 1, buffer) > 0)
 	{
-		bool armed;
-		unsigned int byteNumber;
-		unsigned int bitNumber;
-
 		for (unsigned int index = 0; index < 32; ++index)
 		{
-			byteNumber = index / 8;
-			bitNumber = index % 8;
-			armed = (buffer[byteNumber + 1] >> bitNumber) & 0x01;
+			unsigned int byteNumber = index / 8;
+			unsigned int bitNumber = index % 8;
+			bool armed = (buffer[byteNumber + 1] >> bitNumber) & 0x01;
 
 			if ((firstTime || (m_armLastState[index] != armed)) && (m_isPartitions[index]))
 			{
@@ -695,68 +697,41 @@ bool SatelIntegra::ReadAlarm(const bool firstTime)
 	return true;
 }
 
-void SatelIntegra::ReportZonesViolation(const unsigned long Idx, const bool violation)
+void SatelIntegra::ReportZonesViolation(const int Idx, const bool violation)
 {
+	if (m_mainworker.GetVerboseLevel() >= EVBL_ALL)
+	{
+		_log.Log(LOG_STATUS, "Satel Integra: Report Zone %d = %d", Idx, violation ? 3 : 1);
+	}
+
 	m_zonesLastState[Idx - 1] = violation;
 
-	_tGeneralDevice zone;
-	zone.subtype = sTypeAlert;
-	zone.id = (unsigned char)Idx;
-	zone.intval1 = violation ? 3 : 1;
-
-  if (m_mainworker.GetVerboseLevel() == EVBL_ALL)
-  {
-    _log.Log(LOG_STATUS, "Satel Integra: Report Zone %d = %d", zone.id, zone.intval1);
-  }
-  
-  sDecodeRXMessage(this, (const unsigned char *)&zone, NULL, 255);
+	SendAlertSensor(Idx, 255, violation ? 3 : 1, NULL);
 }
 
-void SatelIntegra::ReportOutputState(const unsigned long Idx, const bool state)
+void SatelIntegra::ReportOutputState(const int Idx, const bool state)
 {
 	m_outputsLastState[Idx - 1] = state;
 
 	if (m_isOutputSwitch[Idx - 1])
 	{
-		_tGeneralSwitch output;
-		output.len = sizeof(_tGeneralSwitch) - 1;
-		output.type = pTypeGeneralSwitch;
-		output.subtype = sSwitchTypeAC;
-		output.id = Idx;
-		output.unitcode = 1;
-		output.cmnd = state ? gswitch_sOn : gswitch_sOff;
-		output.level = 0;
-		output.battery_level = 0;
-		output.rssi = 12;
-		output.seqnbr = 0;
-		sDecodeRXMessage(this, (const unsigned char *)&output, NULL, 255);
+		SendGeneralSwitchSensor(Idx, 255, state ? gswitch_sOn : gswitch_sOff, NULL, 1);
 	}
 	else
 	{
 		char szTmp[10];
-		sprintf(szTmp, "%08X", (unsigned int)Idx);
+		sprintf(szTmp, "%08X", (int)Idx);
 		std::string devname;
 
 		m_sql.UpdateValue(m_HwdID, szTmp, 1, pTypeGeneral, sTypeTextStatus, 12, 255, 0, state ? "On" : "Off", devname);
 	}
 }
 
-void SatelIntegra::ReportArmState(const unsigned int Idx, const bool isArm)
+void SatelIntegra::ReportArmState(const int Idx, const bool isArm)
 {
 	m_armLastState[Idx-1] = isArm;
 
-	_tGeneralSwitch arm;
-	arm.len = sizeof(_tGeneralSwitch) - 1;
-	arm.type = pTypeGeneralSwitch;
-	arm.subtype = sSwitchTypeAC;
-	arm.id = Idx;
-	arm.unitcode = 2;
-	arm.cmnd = isArm ? gswitch_sOn : gswitch_sOff;
-	arm.level = 0;
-	arm.battery_level = 0x0f;
-	arm.rssi = 12;
-	arm.seqnbr = 0;
-	sDecodeRXMessage(this, (const unsigned char *)&arm, NULL, 255);
+	SendGeneralSwitchSensor(Idx, 255, isArm ? gswitch_sOn : gswitch_sOff, NULL, 2);
 }
 
 void SatelIntegra::ReportAlarm(const bool isAlarm)
@@ -770,29 +745,14 @@ void SatelIntegra::ReportAlarm(const bool isAlarm)
 	m_sql.UpdateValue(m_HwdID, "Alarm", 2, pTypeGeneral, sTypeAlert, 12, 255, isAlarm ? 4 : 1, isAlarm ? "Alarm !" : "Normal", devname);
 }
 
-void SatelIntegra::ReportTemperature(const unsigned long Idx, int temp)
+void SatelIntegra::ReportTemperature(const int Idx, const int temp)
 {
-	RBUF tsen;
-	memset(&tsen,0,sizeof(RBUF));
-	tsen.TEMP.packetlength=sizeof(tsen.TEMP)-1;
-	tsen.TEMP.packettype=pTypeTEMP;
-	tsen.TEMP.subtype=sTypeTEMP10;
-	tsen.TEMP.battery_level=9;
-	tsen.TEMP.rssi=12;
-	tsen.TEMP.id1=(BYTE)Idx;
-	tsen.TEMP.id2=0;
-
-	temp = temp - 0x6E;
-	tsen.TEMP.tempsign=(temp>=0)?0:1;
-	int at10=round(abs(temp*5.0f));
-	tsen.TEMP.temperatureh=(BYTE)(at10/256);
-	at10-=(tsen.TEMP.temperatureh*256);
-	tsen.TEMP.temperaturel=(BYTE)(at10);
-
-	sDecodeRXMessage(this, (const unsigned char *)&tsen.TEMP, NULL, 255);
+	float ftemp = static_cast<float>(temp - 0x6E);
+	ftemp /= 2;
+	SendTempSensor(Idx, 255, ftemp, "Temperature");
 }
 
-bool SatelIntegra::ArmPartitions(const unsigned int partition, const unsigned int mode)
+bool SatelIntegra::ArmPartitions(const int partition, const int mode)
 {
 #ifdef DEBUG_SatelIntegra
 	_log.Log(LOG_STATUS, "Satel Integra: arming partition %d", partition);
@@ -827,7 +787,7 @@ bool SatelIntegra::ArmPartitions(const unsigned int partition, const unsigned in
 	return true;
 }
 
-bool SatelIntegra::DisarmPartitions(const unsigned int partition)
+bool SatelIntegra::DisarmPartitions(const int partition)
 {
 #ifdef DEBUG_SatelIntegra
 	_log.Log(LOG_STATUS, "Satel Integra: disarming partition %d", partition);
@@ -859,11 +819,11 @@ bool SatelIntegra::DisarmPartitions(const unsigned int partition)
 
 bool SatelIntegra::WriteToHardware(const char *pdata, const unsigned char length)
 {
-	tRBUF *output = (tRBUF*)pdata;
+	const tRBUF *output = reinterpret_cast<const tRBUF*>(pdata);
 
 	if (output->ICMND.packettype == pTypeGeneralSwitch && output->ICMND.subtype == sSwitchTypeAC)
 	{
-		_tGeneralSwitch *general = (_tGeneralSwitch*)pdata;
+		const _tGeneralSwitch *general = reinterpret_cast<const _tGeneralSwitch*>(pdata);
 		if (general->unitcode == 2) // arm
 		{
 			if (general->cmnd == gswitch_sOn)
@@ -877,7 +837,6 @@ bool SatelIntegra::WriteToHardware(const char *pdata, const unsigned char length
 		}
 		else if (general->unitcode == 1) // outputs
 		{
-			_tGeneralSwitch *general = (_tGeneralSwitch*)pdata;
 			unsigned char buffer[2];
 			unsigned char cmd[41] = { 0 };
 
@@ -923,7 +882,7 @@ std::string SatelIntegra::ISO2UTF8(const std::string &name)
 	char utf8[] = "\xC4\x85\xC4\x87\xC4\x99\xC5\x82\xC5\x84\xC3\xB3\xC5\x9B\xC5\xBA\xC5\xBC\xC4\x84\xC4\x86\xC4\x98\xC5\x81\xC5\x83\xC3\x93\xC5\x9A\xC5\xB9\xC5\xBB";
 
 	std::string UTF8Name;
-	for (int i = 0; i < name.length(); ++i)
+	for (size_t i = 0; i < name.length(); ++i)
 	{
 		bool changed = false;
 		for (int j = 0; j < sizeof(cp1250); ++j)
@@ -944,12 +903,12 @@ std::string SatelIntegra::ISO2UTF8(const std::string &name)
 	return UTF8Name;
 }
 
-void SatelIntegra::UpdateZoneName(const unsigned int Idx, const unsigned char* name, const unsigned int partition)
+void SatelIntegra::UpdateZoneName(const int Idx, const unsigned char* name, const int partition)
 {
 	std::vector<std::vector<std::string> > result;
 
 	char szTmp[4];
-	sprintf(szTmp, "%d", (unsigned int)Idx);
+	sprintf(szTmp, "%d", (int)Idx);
 
 	std::string shortName((char*)name, 16);
 	std::string::size_type pos = shortName.find_last_not_of(' ');
@@ -963,53 +922,53 @@ void SatelIntegra::UpdateZoneName(const unsigned int Idx, const unsigned char* n
 		namePrefix = "Temp";
 	}
 
-	result = m_sql.safe_query("SELECT Name FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Name=='%q:%q') AND (Unit=1)", m_HwdID, szTmp, namePrefix.c_str(), shortName.c_str());
+	result = m_sql.safe_query("SELECT Name FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Name!='Unknown') AND (Unit=1)", m_HwdID, szTmp);
 	if (result.size() < 1)
 	{
 		//Assign zone name from Integra
 #ifdef DEBUG_SatelIntegra
 		_log.Log(LOG_STATUS, "Satel Integra: update name for %d to '%s:%s'", Idx, namePrefix.c_str(), shortName.c_str());
 #endif
-		result = m_sql.safe_query("UPDATE DeviceStatus SET Name='%q:%q', SwitchType=%d, Unit=%d WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit=1)", namePrefix.c_str(), shortName.c_str(), STYPE_Contact, partition, m_HwdID, szTmp);
+		m_sql.safe_query("UPDATE DeviceStatus SET Name='%q:%q', SwitchType=%d, Unit=%d WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit=1)", namePrefix.c_str(), shortName.c_str(), STYPE_Contact, partition, m_HwdID, szTmp);
 	}
 }
 
-void SatelIntegra::UpdateTempName(const unsigned int Idx, const unsigned char* name, const unsigned int partition)
+void SatelIntegra::UpdateTempName(const int Idx, const unsigned char* name, const int partition)
 {
 	std::vector<std::vector<std::string> > result;
 
 	char szTmp[4];
-	sprintf(szTmp, "%d", (unsigned int)Idx);
+	sprintf(szTmp, "%d", (int)Idx);
 
 	std::string shortName((char*)name, 16);
 	std::string::size_type pos = shortName.find_last_not_of(' ');
 	shortName.erase(pos + 1);
 	shortName = ISO2UTF8(shortName);
 
-	result = m_sql.safe_query("SELECT Name FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Name=='Temp:%q') AND (Unit=0)", m_HwdID, szTmp, shortName.c_str());
+	result = m_sql.safe_query("SELECT Name FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Name!='Unknown') AND (Unit=0)", m_HwdID, szTmp);
 	if (result.size() < 1)
 	{
 		//Assign zone name from Integra
 #ifdef DEBUG_SatelIntegra
 		_log.Log(LOG_STATUS, "Satel Integra: update name for %d to 'Temp:%s'", Idx, shortName.c_str());
 #endif
-		result = m_sql.safe_query("UPDATE DeviceStatus SET Name='Temp:%q', SwitchType=%d, Unit=%d WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit=0)", shortName.c_str(), STYPE_Contact, partition, m_HwdID, szTmp);
+		m_sql.safe_query("UPDATE DeviceStatus SET Name='Temp:%q', SwitchType=%d, Unit=%d WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit=0)", shortName.c_str(), STYPE_Contact, partition, m_HwdID, szTmp);
 	}
 }
 
-void SatelIntegra::UpdateOutputName(const unsigned int Idx, const unsigned char* name, const bool switchable)
+void SatelIntegra::UpdateOutputName(const int Idx, const unsigned char* name, const bool switchable)
 {
 	std::vector<std::vector<std::string> > result;
 
 	char szTmp[10];
-	sprintf(szTmp, "%08X", (unsigned int)Idx);
+	sprintf(szTmp, "%08X", (int)Idx);
 
 	std::string shortName((char*)name, 16);
 	std::string::size_type pos = shortName.find_last_not_of(' ');
 	shortName.erase(pos + 1);
 	shortName = ISO2UTF8(shortName);
 
-	result = m_sql.safe_query("SELECT Name FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Name=='Output:%q') AND (Unit=1)", m_HwdID, szTmp, shortName.c_str());
+	result = m_sql.safe_query("SELECT Name FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Name!='Unknown') AND (Unit=1)", m_HwdID, szTmp);
 	if (result.size() < 1)
 	{
 		//Assign output name from Integra
@@ -1022,7 +981,7 @@ void SatelIntegra::UpdateOutputName(const unsigned int Idx, const unsigned char*
 		{
 			switchType = STYPE_OnOff;
 		}
-		result = m_sql.safe_query("UPDATE DeviceStatus SET Name='Output:%q', SwitchType=%d WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit=1)", shortName.c_str(), switchType, m_HwdID, szTmp);
+		m_sql.safe_query("UPDATE DeviceStatus SET Name='Output:%q', SwitchType=%d WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit=1)", shortName.c_str(), switchType, m_HwdID, szTmp);
 	}
 }
 
@@ -1038,7 +997,7 @@ void SatelIntegra::UpdateAlarmAndArmName()
 #ifdef DEBUG_SatelIntegra
 		_log.Log(LOG_STATUS, "Satel Integra: update Alarm name to 'Alarm'");
 #endif
-		result = m_sql.safe_query("UPDATE DeviceStatus SET Name='Alarm' WHERE (HardwareID==%d) AND (DeviceID=='Alarm') AND (Unit=2)", m_HwdID);
+		m_sql.safe_query("UPDATE DeviceStatus SET Name='Alarm' WHERE (HardwareID==%d) AND (DeviceID=='Alarm') AND (Unit=2)", m_HwdID);
 	}
 
 	//Arm
@@ -1047,7 +1006,7 @@ void SatelIntegra::UpdateAlarmAndArmName()
 		if (m_isPartitions[i])
 		{
 			char szTmp[10];
-			sprintf(szTmp, "%08X", (unsigned int)i+1);
+			sprintf(szTmp, "%08X", (int)i+1);
 			result = m_sql.safe_query("SELECT Name FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Name=='Arm %d partition') AND (Unit=2)", m_HwdID, szTmp, i+1);
 			if (result.size() < 1)
 			{
@@ -1055,11 +1014,10 @@ void SatelIntegra::UpdateAlarmAndArmName()
 #ifdef DEBUG_SatelIntegra
 				_log.Log(LOG_STATUS, "Satel Integra: update Arm name to 'Arm %d partition'", i+1);
 #endif
-				result = m_sql.safe_query("UPDATE DeviceStatus SET Name='Arm %d partition' WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit=2)", i+1, m_HwdID, szTmp);
+				m_sql.safe_query("UPDATE DeviceStatus SET Name='Arm %d partition' WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit=2)", i+1, m_HwdID, szTmp);
 			}
 		}
 	}
-
 }
 
 void expandForSpecialValue(std::list<unsigned char> &result)
@@ -1135,7 +1093,7 @@ int SatelIntegra::SendCommand(const unsigned char* cmd, const unsigned int cmdLe
 
 	if ((ret <= 0) || (ret >= MAX_LENGTH_OF_ANSWER)) 
 	{
-		_log.Log(LOG_STATUS, "Satel Integra: bad data length received");
+		_log.Log(LOG_ERROR, "Satel Integra: bad data length received");
 		return -1;
 	}
 
@@ -1202,7 +1160,7 @@ int SatelIntegra::SendCommand(const unsigned char* cmd, const unsigned int cmdLe
 		{
 			if (buffer[0] == 16)
 			{
-				_log.Log(LOG_STATUS, "Satel Integra: busy");
+				_log.Log(LOG_ERROR, "Satel Integra: busy");
 				return -1;
 			}
 			else

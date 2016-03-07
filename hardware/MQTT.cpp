@@ -117,7 +117,7 @@ void MQTT::on_message(const struct mosquitto_message *message)
 	std::string topic = message->topic;
 	std::string qMessage = std::string((char*)message->payload, (char*)message->payload + message->payloadlen);
 
-	_log.Log(LOG_STATUS, "MQTT: Topic: %s, Message: %s", topic.c_str(), qMessage.c_str());
+	_log.Log(LOG_NORM, "MQTT: Topic: %s, Message: %s", topic.c_str(), qMessage.c_str());
 
 	if (qMessage.empty())
 		return;
@@ -283,9 +283,19 @@ void MQTT::on_message(const struct mosquitto_message *message)
 		m_sql.SetUserVariable(idx, varvalue, true);
 		return;
 	}
+	else if (szCommand == "addlogmessage")
+	{
+		if (root["message"].empty())
+			goto mqttinvaliddata;
+		if (!root["message"].isString())
+			goto mqttinvaliddata;
+		std::string msg = root["message"].asString();
+		_log.Log(LOG_STATUS, "MQTT MSG: %s", msg.c_str());
+		return;
+	}
 	else if (szCommand == "sendnotification")
 	{
-		std::string subject(""), body(""), sound("");
+		std::string subject, body, sound;
 		int priority = 0;
 		if (!root["subject"].empty())
 		{
@@ -483,7 +493,7 @@ void MQTT::SendDeviceInfo(const int m_HwdID, const unsigned long long DeviceRowI
 	if (!m_IsConnected)
 		return;
 	std::vector<std::vector<std::string> > result;
-	result = m_sql.safe_query("SELECT DeviceID, Unit, Name, [Type], SubType, nValue, sValue, SwitchType, SignalLevel, BatteryLevel FROM DeviceStatus WHERE (HardwareID==%d) AND (ID==%llu)", m_HwdID, DeviceRowIdx);
+	result = m_sql.safe_query("SELECT DeviceID, Unit, Name, [Type], SubType, nValue, sValue, SwitchType, SignalLevel, BatteryLevel, Options FROM DeviceStatus WHERE (HardwareID==%d) AND (ID==%llu)", m_HwdID, DeviceRowIdx);
 	if (result.size() > 0)
 	{
 		std::vector<std::string> sd = result[0];
@@ -497,6 +507,7 @@ void MQTT::SendDeviceInfo(const int m_HwdID, const unsigned long long DeviceRowI
 		_eSwitchType switchType = (_eSwitchType)atoi(sd[7].c_str());
 		int RSSI = atoi(sd[8].c_str());
 		int BatteryLevel = atoi(sd[9].c_str());
+		std::map<std::string, std::string> options = m_sql.BuildDeviceOptions(sd[10]);
 
 		Json::Value root;
 
@@ -509,6 +520,14 @@ void MQTT::SendDeviceInfo(const int m_HwdID, const unsigned long long DeviceRowI
 
 		if (IsLightOrSwitch(dType, dSubType) == true) {
 			root["switchType"] = Switch_Type_Desc(switchType);
+		}
+		// Add device options
+		std::map<std::string, std::string>::const_iterator ittOptions;
+		for (ittOptions = options.begin(); ittOptions != options.end(); ++ittOptions)
+		{
+			std::string optionName = ittOptions->first.c_str();
+			std::string optionValue = ittOptions->second.c_str();
+			root[optionName] = optionValue;
 		}
 
 		root["RSSI"] = RSSI;
@@ -523,7 +542,7 @@ void MQTT::SendDeviceInfo(const int m_HwdID, const unsigned long long DeviceRowI
 		int sIndex = 1;
 		for (itt = strarray.begin(); itt != strarray.end(); ++itt)
 		{
-			std::stringstream szQuery("");
+			std::stringstream szQuery;
 			szQuery << "svalue" << sIndex;
 			root[szQuery.str()] = *itt;
 			sIndex++;
@@ -541,7 +560,7 @@ void MQTT::SendDeviceInfo(const int m_HwdID, const unsigned long long DeviceRowI
 				std::vector<std::string> sd = result[i];
 				std::string floor = sd[0];
 				std::string room =  sd[1];
-				std::stringstream topic("");
+				std::stringstream topic;
 				topic << TOPIC_OUT << "/" << floor << "/" + room;
 
 				SendMessage(topic.str() , message);

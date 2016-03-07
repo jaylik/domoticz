@@ -59,6 +59,11 @@ void CTCPServerInt::handleAccept(const boost::system::error_code& error)
 	{
 		boost::lock_guard<boost::mutex> l(connectionMutex);
 		std::string s = new_connection_->socket()->remote_endpoint().address().to_string();
+
+		if (s.substr(0, 7) == "::ffff:") {
+			s = s.substr(7);
+		}
+
 		new_connection_->m_endpoint=s;
 		_log.Log(LOG_STATUS,"Incoming Domoticz connection from: %s", s.c_str());
 
@@ -217,7 +222,7 @@ CTCPServerInt::~CTCPServerInt(void)
 
 #ifndef NOCLOUD
 // our proxied server
-CTCPServerProxied::CTCPServerProxied(CTCPServer *pRoot, http::server::CProxyClient *proxy) : CTCPServerIntBase(pRoot)
+CTCPServerProxied::CTCPServerProxied(CTCPServer *pRoot, boost::shared_ptr<http::server::CProxyClient> proxy) : CTCPServerIntBase(pRoot)
 {
 	m_pProxyClient = proxy;
 }
@@ -365,7 +370,7 @@ bool CTCPServer::StartServer(const std::string &address, const std::string &port
 }
 
 #ifndef NOCLOUD
-bool CTCPServer::StartServer(http::server::CProxyClient *proxy)
+bool CTCPServer::StartServer(boost::shared_ptr<http::server::CProxyClient> proxy)
 {
 	_log.Log(LOG_NORM, "Accepting shared server connections via MyDomotiz (see settings menu).");
 	m_pProxyServer = new CTCPServerProxied(this, proxy);

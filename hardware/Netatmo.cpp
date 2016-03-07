@@ -56,21 +56,21 @@ struct _tNetatmoDevice
 
 CNetatmo::CNetatmo(const int ID, const std::string& username, const std::string& password) :
 m_username(CURLEncode::URLEncode(username)),
-m_password(CURLEncode::URLEncode(password))
+m_password(CURLEncode::URLEncode(password)),
+m_clientId("5588029e485a88af28f4a3c4"),
+m_clientSecret("6vIpQVjNsL2A74Bd8tINscklLw2LKv7NhE9uW2")
 {
 	m_nextRefreshTs = mytime(NULL);
 	m_isLogged = false;
 
 	m_HwdID=ID;
 
-	m_clientId = "5588029e485a88af28f4a3c4";
-	m_clientSecret = "6vIpQVjNsL2A74Bd8tINscklLw2LKv7NhE9uW2";
 	m_stoprequested=false;
 	m_bPollThermostat = true;
 	m_bPollWeatherData = true;
 	m_bFirstTimeThermostat = true;
 	m_bFirstTimeWeatherData = true;
-
+	m_tSetpointUpdateTime = time(NULL);
 	Init();
 }
 
@@ -519,19 +519,33 @@ bool CNetatmo::ParseDashboard(const Json::Value &root, const int DevIdx, const i
 
 	if (bHaveTemp && bHaveHum && bHaveBaro)
 	{
-		int nforecast = wsbaroforcast_some_clouds;
-		float pressure = baro;
-		if (pressure <= 980)
-			nforecast = wsbaroforcast_heavy_rain;
-		else if (pressure <= 995)
+		int nforecast = CalculateBaroForecast(baro);
+		if (temp < 0)
 		{
-			if (temp > 1)
-				nforecast = wsbaroforcast_rain;
-			else
+			if (
+				(nforecast == wsbaroforcast_rain) ||
+				(nforecast == wsbaroforcast_heavy_rain)
+				)
+			{
 				nforecast = wsbaroforcast_snow;
+			}
 		}
-		else if (pressure >= 1029)
-			nforecast = wsbaroforcast_sunny;
+		if (nforecast == wsbaroforcast_unknown)
+		{
+			nforecast = wsbaroforcast_some_clouds;
+			float pressure = baro;
+			if (pressure <= 980)
+				nforecast = wsbaroforcast_heavy_rain;
+			else if (pressure <= 995)
+			{
+				if (temp > 1)
+					nforecast = wsbaroforcast_rain;
+				else
+					nforecast = wsbaroforcast_snow;
+			}
+			else if (pressure >= 1029)
+				nforecast = wsbaroforcast_sunny;
+		}
 		SendTempHumBaroSensorFloat(ID, batValue, temp, hum, baro, nforecast, name);
 	}
 	else if (bHaveTemp && bHaveHum)
@@ -603,7 +617,7 @@ bool CNetatmo::WriteToHardware(const char *pdata, const unsigned char length)
 		return false;
 	}
 
-	tRBUF *pCmd = (tRBUF *)pdata;
+	const tRBUF *pCmd = reinterpret_cast<const tRBUF *>(pdata);
 	if (pCmd->LIGHTING2.packettype != pTypeLighting2)
 		return false; //later add RGB support, if someone can provide access
 

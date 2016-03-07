@@ -31,7 +31,7 @@ class CPanasonicNode //: public boost::enable_shared_from_this<CPanasonicNode>
 		bool			UpdateRequired(CPanasonicStatus&);
 		bool			OnOffRequired(CPanasonicStatus&);
 		bool			IsOn() { return (m_nStatus != MSTAT_OFF); };
-		void			Volume(int pVolume) { m_VolumeLevel = pVolume; };
+		void			Volume(int pVolume) { m_VolumeLevel = pVolume;};
 		void			Muted(bool pMuted) { m_Muted = pMuted; };
 	private:
 		_eMediaStatus	m_nStatus;
@@ -45,20 +45,22 @@ public:
 	CPanasonicNode(const int, const int, const int, const std::string&, const std::string&, const std::string&, const std::string&);
 	~CPanasonicNode(void);
 	void			Do_Work();
-	void			SendCommand(const std::string);
-	void			SendCommand(const std::string, const int iValue);
-	void			SetExecuteCommand(const std::string command);
+	void			SendCommand(const std::string &command);
+	void			SendCommand(const std::string &command, const int iValue);
+	void			SetExecuteCommand(const std::string &command);
 	bool			SendShutdown();
-	void			StopRequest() { m_stoprequested = true; };
+	void			StopThread();
+	bool			StartThread();
 	bool			IsBusy() { return m_Busy; };
-	bool			IsOn() { return (m_CurrentStatus.Status() != MSTAT_OFF); };
+	bool			IsOn() { return (m_CurrentStatus.Status() == MSTAT_ON); };
 
 	int				m_ID;
 	int				m_DevID;
 	std::string		m_Name;
 
-protected:
 	bool			m_stoprequested;
+	boost::shared_ptr<boost::thread> m_thread;
+protected:
 	bool			m_Busy;
 	bool			m_Stoppable;
 
@@ -69,7 +71,7 @@ private:
 	std::string		buildXMLStringRendCtl(std::string, std::string);
 	std::string		buildXMLStringRendCtl(std::string, std::string, std::string);
 	std::string		buildXMLStringNetCtl(std::string);
-
+	
 	int				m_HwdID;
 	char			m_szDevID[40];
 	std::string		m_IP;
@@ -77,7 +79,8 @@ private:
 
 	CPanasonicStatus		m_PreviousStatus;
 	CPanasonicStatus		m_CurrentStatus;
-	void			UpdateStatus();
+	//void			UpdateStatus();
+	void			UpdateStatus(bool force = false);
 
 	std::string		m_ExecuteCommand;
 

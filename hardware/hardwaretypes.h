@@ -56,7 +56,7 @@
 #define sTypeAlert					0x16
 #define sTypeCurrent				0x17
 #define sTypeSoundLevel				0x18
-#define sTypeSwitch					0x19
+//#define sTypeReservedForyou		0x19
 #define sTypeBaro					0x1A
 #define sTypeDistance				0x1B
 #define sTypeCounterIncremental		0x1C
@@ -127,11 +127,23 @@
 #define sSwitchTypeDiya				0x41
 #define sSwitchTypeX10secu			0x42
 #define sSwitchTypeAtlantic			0x43
-#define sSwitchTypeSilvercrestDB	0x44 
+#define sSwitchTypeSilvercrestDB	0x44
 #define sSwitchTypeMedionDB			0x45
 #define sSwitchTypeVMC				0x46
 #define sSwitchTypeKeeloq			0x47
 #define sSwitchCustomSwitch			0x48
+#define sSwitchGeneralSwitch		0x49
+#define sSwitchTypeKoch				0x4a
+#define sSwitchTypeKingpin			0x4b
+#define sSwitchTypeFunkbus			0x4c
+#define sSwitchTypeNice				0x4d
+#define sSwitchTypeForest			0x4e
+#define sSwitchBlindsT1				0x4f
+#define sSwitchMC145026				0x50
+#define sSwitchLobeco				0x51
+#define sSwitchFriedland			0x52
+#define sSwitchBFT					0x53
+#define sSwitchNovatys				0x54
 
 //Switch commands
 #define gswitch_sOff				0x00
@@ -191,13 +203,8 @@
 #define sTypeRego6XXStatus   0x02
 #define sTypeRego6XXCounter  0x03
 
-//Z-Wave
-//#define pTypeENERGY 0x5A
-#define sTypeZWaveUsage 0xA0
-#define sTypeZWaveSwitch 0xA1
-
 //types for evohome
-#define pTypeEvohome 0x45 
+#define pTypeEvohome 0x45
 #define sTypeEvohome 0x00 //Controller
 
 #define pTypeEvohomeZone 0x46 //Seems easier to define a new type here
@@ -207,7 +214,7 @@
 #define sTypeEvohomeWater 0x00 //Hot water (Ideally this would just be a zone but for whatever reason evohome treats this differently)
 
 #define pTypeEvohomeRelay 0x44 //Relay
-#define sTypeEvohomeRelay 0x00 
+#define sTypeEvohomeRelay 0x00
 
 //#define sTypeEvohomeOutside 0x30 //If connected
 //#define sTypeEvohomeStatus 0x40 //Not sure if we can do this in 1 sensor would be for things like zone valve status, boiler relay status (maybe OT values too) and comms errors (maybe seperature sensor or switch for each is easiest)
@@ -389,6 +396,9 @@ typedef struct _tGeneralSwitch {
 		seqnbr = 0;
 		reserved_int = 0;
 		reserved_float = 0;
+		level = 0;
+		battery_level = 255;
+		rssi = 12;
 	}
 } GeneralSwitch;
 
@@ -509,7 +519,7 @@ typedef union tREVOBUF {
 		uint8_t	mins;
 		uint8_t	battery_level;
 	} EVOHOME2;
-	
+
 	struct _tEVOHOME3 {
 		unsigned char len;
 		unsigned char type;
