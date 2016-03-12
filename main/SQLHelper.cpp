@@ -4453,9 +4453,10 @@ void CSQLHelper::UpdatePercentageLog()
 	GetPreferencesVar("SensorTimeout", SensorTimeOut);
 
 	std::vector<std::vector<std::string> > result;
-	result = safe_query("SELECT ID,Type,SubType,nValue,sValue,LastUpdate FROM DeviceStatus WHERE (Type=%d AND SubType=%d) OR (Type=%d AND SubType=%d)",
+	result = safe_query("SELECT ID,Type,SubType,nValue,sValue,LastUpdate FROM DeviceStatus WHERE (Type=%d AND SubType=%d) OR (Type=%d AND SubType=%d) OR (Type=%d AND SubType=%d)",
 		pTypeGeneral, sTypePercentage,
-		pTypeGeneral, sTypeWaterflow
+		pTypeGeneral, sTypeWaterflow,
+		pTypeGeneral, sTypeCustom
 		);
 	if (result.size()>0)
 	{
@@ -4497,7 +4498,7 @@ void CSQLHelper::UpdatePercentageLog()
 			//insert record
 			safe_query(
 				"INSERT INTO Percentage (DeviceRowID, Percentage) "
-				"VALUES ('%llu', '%.2f')",
+				"VALUES ('%llu', '%g')",
 				ID,
 				percentage
 				);
@@ -5320,7 +5321,7 @@ void CSQLHelper::AddCalendarUpdatePercentage()
 			//insert into calendar table
 			result=safe_query(
 				"INSERT INTO Percentage_Calendar (DeviceRowID, Percentage_Min, Percentage_Max, Percentage_Avg, Date) "
-				"VALUES ('%llu', '%.2f', '%.2f', '%.2f','%q')",
+				"VALUES ('%llu', '%g', '%g', '%g','%q')",
 				ID,
 				percentage_min,
 				percentage_max,
