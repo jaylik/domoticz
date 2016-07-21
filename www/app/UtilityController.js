@@ -318,14 +318,14 @@ define(['app'], function (app) {
 						DayStrOrig="Monthly on Day " + item.MDay;
 					}
 					else if (item.Type==11) {
-						var Weekday = Math.log2(parseInt(item.Days));
+						var Weekday = Math.log(parseInt(item.Days)) / Math.log(2);
 						DayStrOrig="Monthly on " + $.myglobals.OccurenceStr[item.Occurence-1] + " " + $.myglobals.WeekdayStr[Weekday];
 					}
 					else if (item.Type==12) {
 						DayStrOrig="Yearly on " + item.MDay + " " + $.myglobals.MonthStr[item.Month-1];
 					}
 					else if (item.Type==13) {
-						var Weekday = Math.log2(parseInt(item.Days));
+						var Weekday = Math.log(parseInt(item.Days)) / Math.log(2);
 						DayStrOrig="Yearly on " + $.myglobals.OccurenceStr[item.Occurence-1] + " " + $.myglobals.WeekdayStr[Weekday] + " in " + $.myglobals.MonthStr[item.Month-1];
 					}
 
@@ -361,7 +361,7 @@ define(['app'], function (app) {
 						"7": item.Month,
 						"8": item.MDay,
 						"9": item.Occurence,
-						"10": Math.log2(parseInt(item.Days))
+						"10": Math.log(parseInt(item.Days)) / Math.log(2)
 					} );
 				});
 			  }
@@ -1416,6 +1416,9 @@ define(['app'], function (app) {
 				  if (typeof item.Counter != 'undefined') {
 					if ((item.Type == "P1 Smart Meter")&&(item.SubType=="Energy")) {
 						xhtm+='<a class="btnsmall" onclick="ShowSmartLog(\'#utilitycontent\',\'ShowUtilities\',' + item.idx + ',\'' + escape(item.Name) + '\', ' + item.SwitchTypeVal + ');" data-i18n="Log">Log</a> ';
+					}
+					else if ((item.Type == "YouLess Meter")&&(item.SwitchTypeVal==0 || item.SwitchTypeVal==4)) {
+						xhtm+='<a class="btnsmall" onclick="ShowCounterLogSpline(\'#utilitycontent\',\'ShowUtilities\',' + item.idx + ',\'' + escape(item.Name) + '\', ' + item.SwitchTypeVal + ');" data-i18n="Log">Log</a> ';
 					}
 					else {
 						xhtm+='<a class="btnsmall" onclick="ShowCounterLog(\'#utilitycontent\',\'ShowUtilities\',' + item.idx + ',\'' + escape(item.Name) + '\', ' + item.SwitchTypeVal + ');" data-i18n="Log">Log</a> ';

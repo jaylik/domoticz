@@ -229,31 +229,15 @@ void CEventSystem::GetCurrentStates()
 {
 	std::vector<std::vector<std::string> > result;
 
-	//Get All Hardware ID's/Names, need them later
-	std::map<unsigned long long, _tHardwareListIntEV> _hardwareNames;
-	result = m_sql.safe_query("SELECT ID, Name, Enabled FROM Hardware");
-	if (result.size() > 0)
-	{
-		std::vector<std::vector<std::string> >::const_iterator itt;
-		for (itt = result.begin(); itt != result.end(); ++itt)
-		{
-			std::vector<std::string> sd = *itt;
-			_tHardwareListIntEV tlist;
-			unsigned long long ID;
-			std::stringstream h_str(sd[0]);
-			h_str >> ID;
-			tlist.Name = sd[1];
-			tlist.Enabled = (atoi(sd[2].c_str()) != 0);
-			_hardwareNames[ID] = tlist;
-		}
-	}
-
 	boost::unique_lock<boost::shared_mutex> devicestatesMutexLock(m_devicestatesMutex);
 
 	_log.Log(LOG_STATUS, "EventSystem: reset all device statuses...");
 	m_devicestates.clear();
 
-	result = m_sql.safe_query("SELECT HardwareID,ID,Name,nValue,sValue, Type, SubType, SwitchType, LastUpdate, LastLevel, Options FROM DeviceStatus WHERE (Used = '1')");
+	result = m_sql.safe_query(
+		"SELECT A.HardwareID, A.ID, A.Name, A.nValue, A.sValue, A.Type, A.SubType, A.SwitchType, A.LastUpdate, A.LastLevel, A.Options "
+		"FROM DeviceStatus AS A, Hardware AS B "
+		"WHERE (A.Used = '1') AND (B.ID == A.HardwareID) AND (B.Enabled == 1)");
 	if (result.size()>0)
 	{
 		// Allocate all memory before filling
@@ -262,20 +246,6 @@ void CEventSystem::GetCurrentStates()
 		for (itt = result.begin(); itt != result.end(); ++itt)
 		{
 			std::vector<std::string> sd = *itt;
-
-			unsigned long long HwID;
-			std::stringstream h_str(sd[0]);
-			h_str >> HwID;
-
-			std::map<unsigned long long, _tHardwareListIntEV>::const_iterator hItt = _hardwareNames.find(HwID);
-			if (hItt != _hardwareNames.end())
-			{
-				if (!(*hItt).second.Enabled)
-				{
-					//Hardware is disabled, no need to add the device
-					continue;
-				}
-			}
 
 			_tDeviceStatus sitem;
 
@@ -331,6 +301,38 @@ void CEventSystem::GetCurrentUserVariables()
 	}
 }
 
+void CEventSystem::GetCurrentScenesGroups()
+{
+	boost::unique_lock<boost::shared_mutex> scenesgroupsMutexLock(m_scenesgroupsMutex);
+
+	m_scenesgroups.clear();
+
+	std::vector<std::vector<std::string> > result;
+	result = m_sql.safe_query("SELECT ID, Name, nValue, SceneType, LastUpdate FROM Scenes");
+	if (result.size() > 0)
+	{
+		std::vector<std::vector<std::string> >::const_iterator itt;
+		for (itt = result.begin(); itt != result.end(); ++itt)
+		{
+			std::vector<std::string> sd = *itt;
+			_tScenesGroups sgitem;
+			std::stringstream s_str(sd[0]);
+			s_str >> sgitem.ID;
+			unsigned char nValue = atoi(sd[2].c_str());
+
+			if (nValue == 0)
+				sgitem.scenesgroupValue = "Off";
+			else if (nValue == 1)
+				sgitem.scenesgroupValue = "On";
+			else
+				sgitem.scenesgroupValue = "Mixed";
+			sgitem.scenesgroupName = sd[1];
+			sgitem.scenesgroupType = atoi(sd[3].c_str());
+			sgitem.lastUpdate = sd[4];
+			m_scenesgroups[sgitem.ID] = sgitem;
+		}
+	}
+}
 
 void CEventSystem::GetCurrentMeasurementStates()
 {
@@ -501,6 +503,10 @@ void CEventSystem::GetCurrentMeasurementStates()
 				isBaro = true;
 			}
 			break;
+		case pTypeBARO:
+			barometer = static_cast<float>(atof(splitresults[0].c_str()));
+			isBaro = true;
+			break;
 		case pTypeRadiator1:
 			if (sitem.subType == sTypeSmartwares)
 			{
@@ -626,6 +632,11 @@ void CEventSystem::GetCurrentMeasurementStates()
 					weatherval = utilityval;
 					isWeather = true;
 				}
+				else if (sitem.subType == sTypeBaro)
+				{
+					barometer = static_cast<float>(atof(splitresults[0].c_str()));
+					isBaro = true;
+				}
 				else if ((sitem.subType == sTypeAlert)
 					  || (sitem.subType == sTypeDistance)
 					  || (sitem.subType == sTypePercentage)
@@ -634,7 +645,9 @@ void CEventSystem::GetCurrentMeasurementStates()
 					  || (sitem.subType == sTypeVoltage)
 		 			  || (sitem.subType == sTypeCurrent)
 		 			  || (sitem.subType == sTypeSetPoint)
-					  || (sitem.subType == sTypeKwh))
+					  || (sitem.subType == sTypeKwh)
+					  || (sitem.subType == sTypeSoundLevel)
+					)
 				{
 					utilityval = static_cast<float>(atof(splitresults[0].c_str()));
 					isUtility = true;
@@ -735,63 +748,34 @@ void CEventSystem::GetCurrentMeasurementStates()
 				if (sitem.subType != sTypeRAINWU)
 				{
 					result2 = m_sql.safe_query(
-						"SELECT MIN(Total), MAX(Total), MAX(Rate) FROM Rain WHERE (DeviceRowID=%llu AND Date>='%q')",
+						"SELECT MIN(Total), MAX(Total) FROM Rain WHERE (DeviceRowID=%llu AND Date>='%q')",
 						sitem.ID, szDate);
 				}
 				else
 				{
 					result2 = m_sql.safe_query(
-						"SELECT Total, Total, Rate FROM Rain WHERE (DeviceRowID=%llu AND Date>='%q') ORDER BY ROWID DESC LIMIT 1",
+						"SELECT Total, Total FROM Rain WHERE (DeviceRowID=%llu AND Date>='%q') ORDER BY ROWID DESC LIMIT 1",
 						sitem.ID, szDate);
 				}
 				if (result2.size()>0)
 				{
 					double total_real = 0;
-					float rate = 0;
 					std::vector<std::string> sd2 = result2[0];
 					if (sitem.subType != sTypeRAINWU)
 					{
 						float total_min = static_cast<float>(atof(sd2[0].c_str()));
 						float total_max = static_cast<float>(atof(splitresults[1].c_str()));
-						rate = static_cast<float>(atof(sd2[2].c_str()));
-						if (sitem.subType == sTypeRAIN2)
-							rate /= 100.0f;
 						total_real = total_max - total_min;
 					}
 					else
 					{
-						rate = static_cast<float>(atof(sd2[2].c_str()));
 						total_real = atof(sd2[1].c_str());
 					}
-					//total_real*=AddjMulti;
 					rainmm = float(total_real);
+					rainmmlasthour = static_cast<float>(atof(splitresults[0].c_str())) / 100.0f;
 					isRain = true;
-					weatherval = rainmm;
+					weatherval = rainmmlasthour;
 					isWeather = true;
-
-					//Calculate Last Hour
-					szQuery.clear();
-					szQuery.str("");
-					sprintf(szDate, "datetime('now', 'localtime', '-%d hour')", 1);
-					if (sitem.subType != sTypeRAINWU)
-					{
-						result2 = m_sql.safe_query(
-							"SELECT MIN(Total), MAX(Total), MAX(Rate) FROM Rain WHERE (DeviceRowID=%llu AND Date>='%q')",
-							sitem.ID, szDate);
-					}
-					else
-					{
-						result2 = m_sql.safe_query(
-							"SELECT Total, Total, Rate FROM Rain WHERE (DeviceRowID=%llu AND Date>='%q') ORDER BY ROWID DESC LIMIT 1",
-							sitem.ID, szDate);
-					}
-					rainmmlasthour = 0;
-					if (result2.size()>0)
-					{
-						std::vector<std::string> sd2 = result2[0];
-						float r_first = static_cast<float>(atof(sd2[0].c_str()));
-						rainmmlasthour = static_cast<float>(atof(splitresults[1].c_str())) - r_first;
-					}
 				}
 			}
 			break;
@@ -999,7 +983,6 @@ void CEventSystem::WWWUpdateSecurityState(int securityStatus)
 
 std::string CEventSystem::UpdateSingleState(const unsigned long long ulDevID, const std::string &devname, const int nValue, const char* sValue, const unsigned char devType, const unsigned char subType, const _eSwitchType switchType, const std::string &lastUpdate, const unsigned char lastLevel, const std::map<std::string, std::string> & options)
 {
-
 	std::string nValueWording = nValueToWording(devType, subType, switchType, nValue, sValue, options);
 
 	// Fix string capacity to avoid map entry resizing
@@ -1066,6 +1049,7 @@ void CEventSystem::ProcessDevice(const int HardwareID, const unsigned long long 
 void CEventSystem::ProcessMinute()
 {
 	GetCurrentUserVariables();
+	GetCurrentScenesGroups();
 	EvaluateEvent("time");
 }
 
@@ -2684,6 +2668,16 @@ void CEventSystem::EvaluateLua(const std::string &reason, const std::string &fil
 	}
 	lua_setglobal(lua_state, "uservariables");
 
+	lua_createtable(lua_state, (int)m_scenesgroups.size(), 0);
+	typedef std::map<unsigned long long, _tScenesGroups>::iterator it_scgr;
+	for (it_scgr iterator = m_scenesgroups.begin(); iterator != m_scenesgroups.end(); ++iterator) {
+		_tScenesGroups sgitem = iterator->second;
+		lua_pushstring(lua_state, sgitem.scenesgroupName.c_str());
+		lua_pushstring(lua_state, sgitem.scenesgroupValue.c_str());
+		lua_rawset(lua_state, -3);
+	}
+	lua_setglobal(lua_state, "otherdevices_scenesgroups");
+
 	lua_createtable(lua_state, (int)m_uservariables.size(), 0);
 
 	typedef std::map<unsigned long long, _tUserVariable>::iterator it_var;
@@ -3416,7 +3410,13 @@ std::string CEventSystem::nValueToWording(const unsigned char dType, const unsig
 	{
 		// use default lstatus
 	}
-	else if(switchtype == STYPE_Selector) {
+	else if (((dType == pTypeGeneral) && (dSubType == sTypeCounterIncremental)) ||
+		(dType == pTypeRFXMeter))
+	{
+		lstatus = sValue;
+	}
+	else if(switchtype == STYPE_Selector)
+	{
 		std::map<std::string, std::string> statuses;
 		GetSelectorSwitchStatuses(options, statuses);
 		std::stringstream sslevel;
@@ -3491,6 +3491,10 @@ std::string CEventSystem::nValueToWording(const unsigned char dType, const unsig
 	{
 		lstatus = Media_Player_States((const _eMediaStatus)nValue);
 	}
+	else if (lstatus == "")
+	{
+		lstatus = sValue;
+	}
 	return lstatus;
 }
 
@@ -3504,7 +3508,7 @@ int CEventSystem::l_domoticz_print(lua_State* lua_state)
 		if (lua_isstring(lua_state, i))
 		{
 			//std::string lstring=lua_tostring(lua_state, i);
-			_log.Log(LOG_NORM, "LUA: %s", lua_tostring(lua_state, i));
+			_log.Log(LOG_STATUS, "LUA: %s", lua_tostring(lua_state, i));
 		}
 		else
 		{
