@@ -166,7 +166,7 @@
 						<li id="usercodegrp"><a id="zwavecodemanagement" href="javascript:ZWaveUserCodeManagement();" ><button type="button" data-i18n="User Code Management" class="btn btn-primary">User Code Management</button></a></li>
 						<li role="presentation" class="divider"></li>
 						<li><a id="zwave_configdownload" href="#" ><button type="button" data-i18n="Download Configuration File" class="btn btn-primary">Download Configuration File</button></a></li>
-						<li><a id="zwave_controlpabel" href="/ozwcp/cp.html" ><button type="button" data-i18n="Control Panel" class="btn btn-primary">Control Panel</button></a></li>
+						<li><a id="zwave_controlpabel" href="./ozwcp/cp.html" ><button type="button" data-i18n="Control Panel" class="btn btn-primary">Control Panel</button></a></li>
 					  </ul>
 					</div>
 				</td>
@@ -649,7 +649,8 @@
             <tr>
                 <th width="70" align="center" data-i18n="ID">ID</th>
                 <th width="250" align="left" data-i18n="Name">Name</th>
-                <th align="left" data-i18n="IP Address">IP Address</th>
+                <th width="150" align="left" data-i18n="IP Address">IP Address</th>
+				<th align="left" data-i18n="Type">Type</th>
             </tr>
         </thead>
     </table>
@@ -725,6 +726,33 @@
                 <th width="120" align="left" data-i18n="Mac Address">Mac Address</th>
             </tr>
         </thead>
+    </table>
+    <input type="hidden" id="idx" name="idx" value="-1">
+</div>
+
+<div id="heos" style="display:none;">
+    <div class="page-header-small">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+                <td>
+                    <h1 data-i18n="Settings">Settings</h1>
+                </td>
+            </tr>
+        </table>
+    </div>
+    <table class="display" id="heossettingstable" border="0" cellpadding="0" cellspacing="20">
+        <tr>
+            <td align="right" style="width:110px"><label for="pollinterval"><span data-i18n="Poll Interval"></span>:</label></td>
+            <td><input type="text" id="pollinterval" style="width: 80px; padding: .2em;" class="text ui-widget-content ui-corner-all" />&nbsp;(<span data-i18n="Seconds">Seconds</span>)</td>
+        </tr>
+        <tr>
+            <td align="right" style="width:110px"><label for="pingtimeout"><span data-i18n="Ping Timeout"></span>:</label></td>
+            <td><input type="text" id="pingtimeout" style="width: 80px; padding: .2em;" class="text ui-widget-content ui-corner-all" />&nbsp;(<span data-i18n="Milliseconds"></span>)</td>
+        </tr>
+        <tr>
+            <td></td>
+            <td><a class="btn-danger sub-tabs-apply" onclick="SetHEOSSettings();" data-i18n="Apply Settings">Apply Settings</a></td>
+        </tr>
     </table>
     <input type="hidden" id="idx" name="idx" value="-1">
 </div>
@@ -1095,6 +1123,15 @@
 				</tr>
 			</table>
 		</div>
+		<div id="divi2clocal">
+			<br>
+			<table class="display" id="hardwareparamsi2clocal" border="0" cellpadding="0" cellspacing="20">
+				<tr>
+					<td align="right" style="width:110px"><label id="lbli2cname" for="name"><span data-i18n="SubType"></span>:</label></td>
+					<td><select id="comboi2clocal" style="width:410px" class="combobox ui-corner-all"></select></td>
+				</tr>
+			</table>
+		</div>
     <div id="divbaudratemysensors">
       <table class="display" id="hardwareparamsbaudratemysensors" border="0" cellpadding="0" cellspacing="20">
         <tr>
@@ -1132,6 +1169,20 @@
 				</tr>
 			</table>
 		</div>
+		<div id="divcrcp1">
+			<table class="display" id="hardwareparamscrcp1" border="0" cellpadding="0" cellspacing="20">
+				<tr valign="top">
+					<td align="right" style="width:110px"><label id="lblcrcp1" for="name"><span data-i18n="CRC message validation">CRC message validation</span>: </label></td>
+					<td>
+						<input type="checkbox" id="disablecrcp1" checked="checked" name="disablecrcp1">
+						<br />
+						<span data-i18n="Using CRC message validation prevents incorrect data from entering the Domoticz database.">Using CRC message validation prevents incorrect data from entering the Domoticz database.</span>
+						<br />
+						<strong><font class="warning-text"><span data-i18n="Should normally not be disabled!"></span>Should normally not be disabled!</font></strong>
+					</td>
+				</tr>
+			</table>
+		</div>
 		<div id="divhttppoller">
 			<br>
 			<table class="display" id="hardwareparamshttp" border="0" cellpadding="0" cellspacing="20">
@@ -1146,6 +1197,15 @@
 				<tr>
 					<td align="right" style="width:110px"><label><span data-i18n="Refresh"></span>:</label></td>
 					<td><input type="text" id="refresh" style="width: 250px; padding: .2em;" class="text ui-widget-content ui-corner-all" /></td>
+				</tr>
+			</table>
+		</div>
+		<div id="divpollinterval">
+			<br>
+			<table class="display" id="hardwareparamspollinterval" border="0" cellpadding="0" cellspacing="20">
+				<tr>
+					<td align="right" style="width:110px"><label><span data-i18n="Refresh"></span>(ms):</label></td>
+					<td><input type="text" id="pollinterval" style="width: 50px; padding: .2em;" class="text ui-widget-content ui-corner-all" /></td>
 				</tr>
 			</table>
 		</div>
@@ -1218,7 +1278,11 @@
 			<table class="display" id="hardwareparamsphilipshue" border="0" cellpadding="0" cellspacing="20">
 				<tr>
 					<td align="right" style="width:110px"><label id="lblusername" for="name"><span data-i18n="Username"></span>:</label></td>
-					<td><input type="text" id="username" style="width: 300px; padding: .2em;" class="text ui-widget-content ui-corner-all" /></td>
+					<td>
+						<input type="text" id="username" style="width: 300px; padding: .2em;" class="text ui-widget-content ui-corner-all" />
+						<br />
+						<span data-i18n="Leave the username empty and press the LINK button on the Philips Hue bridge. Then press the 'Register on Bridge' button.">Leave the username empty and press the LINK button on the Philips Hue bridge. Then press the 'Register on Bridge' button.</span>
+					</td>
 				</tr>
 				<tr>
 					<td></td>
@@ -1241,6 +1305,7 @@
 						<option value="121">De Trouwe Wachter</option>
 						<option value="131">De Blauwe Reiger</option>
 						<option value="141">De Vier Winden</option>
+						<option value="191">De Boerenzwaluw</option>
 						</select>
 					</td>
 				</tr>
@@ -1250,6 +1315,15 @@
 				</tr>
 			</table>
 		</div>
+		<div id="divgoodweweb">
+                        <br>
+                        <table class="display" id="hardwareparamsgoodweweb" border="0" cellpadding="0" cellspacing="20">
+                                <tr>
+					<td align="right" style="width:110px"><label><span data-i18n="username">Goodwe-power Username</span>:</label></td>
+					<td><input type="text" id="username" style="width: 170px; padding: .2em;" class="text ui-widget-content ui-corner-all" /></td>
+                                </tr>
+                        </table>
+                </div>
 		<div id="divmqtt">
 			<br>
 			<table class="display" id="hardwareparamsmqtt" border="0" cellpadding="0" cellspacing="20">
@@ -1361,3 +1435,29 @@
 				<input type="text" id="sensorname" style="width: 240px; padding: .2em;" class="text ui-widget-content ui-corner-all" />
 		</form>
 </div>
+<div id="tellstick" style="display:none;">
+    <div class="page-header-small">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+                <td>
+                    <h1 data-i18n="Settings">Settings</h1>
+                </td>
+            </tr>
+        </table>
+    </div>
+    <table class="display" id="tellstickSettingsTable" border="0" cellpadding="0" cellspacing="20">
+        <tr>
+            <td align="right" style="width:110px"><label for="repeats"><span data-i18n="Repeats">Repeats</span>:</label></td>
+            <td><input type="text" id="repeats" style="width: 80px; padding: .2em;" class="text ui-widget-content ui-corner-all"</td>
+        </tr>
+        <tr>
+            <td align="right" style="width:110px"><label for="repeatInterval"><span data-i18n="Repeat Interval">Repeat Interval</span>:</label></td>
+            <td><input type="text" id="repeatInterval" style="width: 80px; padding: .2em;" class="text ui-widget-content ui-corner-all" />&nbsp;(<span data-i18n="Milliseconds"></span>)</td>
+        </tr>
+        <tr>
+            <td></td>
+            <td><a class="btn-danger sub-tabs-apply" onclick="TellstickApplySettings();" data-i18n="Apply Settings"></a></td>
+        </tr>
+    </table>
+</div>
+    

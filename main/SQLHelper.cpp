@@ -1411,6 +1411,7 @@ bool CSQLHelper::OpenDatabase()
 			UpdatePreferencesVar("ProwlEnabled", 1);
 			UpdatePreferencesVar("PushALotEnabled", 1);
 			UpdatePreferencesVar("PushoverEnabled", 1);
+			UpdatePreferencesVar("PushsaferEnabled", 1);
 			UpdatePreferencesVar("ClickatellEnabled", 1);
 		}
 		if (dbversion < 68)
@@ -1925,7 +1926,7 @@ bool CSQLHelper::OpenDatabase()
 				<< "([Type] = " << HTYPE_TE923 << ") OR "
 				<< "([Type] = " << HTYPE_TOONTHERMOSTAT << ") OR "
 				<< "([Type] = " << HTYPE_Wunderground << ") OR "
-				<< "([Type] = " << HTYPE_ForecastIO << ") OR "
+				<< "([Type] = " << HTYPE_DarkSky << ") OR "
 				<< "([Type] = " << HTYPE_AccuWeather << ") OR "
 				<< "([Type] = " << HTYPE_RazberryZWave << ") OR "
 				<< "([Type] = " << HTYPE_OpenZWave << ")"
@@ -2186,6 +2187,10 @@ bool CSQLHelper::OpenDatabase()
 	{
 		UpdatePreferencesVar("UseEmailInNotifications", 1);
 	}
+	if (!GetPreferencesVar("SendErrorNotifications", nValue))
+	{
+		UpdatePreferencesVar("SendErrorNotifications", 0);
+	}
 	if ((!GetPreferencesVar("EmailPort", nValue)) || (nValue == 0))
 	{
 		UpdatePreferencesVar("EmailPort", 25);
@@ -2437,20 +2442,29 @@ bool CSQLHelper::OpenDatabase()
 	if ((!GetPreferencesVar("HTTPPostContentType", sValue)) || (sValue.empty()))
 	{
 		sValue = "application/json";
-		UpdatePreferencesVar("HTTPPostContentType", sValue);
+		std::string sencoded = base64_encode((const unsigned char*)sValue.c_str(), sValue.size());
+		UpdatePreferencesVar("HTTPPostContentType", sencoded);
 	}
 	if (!GetPreferencesVar("ShowUpdateEffect", nValue))
 	{
 		UpdatePreferencesVar("ShowUpdateEffect", 0);
 	}
+	nValue = 5;
 	if (!GetPreferencesVar("ShortLogInterval", nValue))
 	{
-		nValue = 5;
 		UpdatePreferencesVar("ShortLogInterval", nValue);
 	}
 	if (nValue < 1)
 		nValue = 5;
 	m_ShortLogInterval = nValue;
+
+	if (!GetPreferencesVar("SendErrorsAsNotification", nValue))
+	{
+		UpdatePreferencesVar("SendErrorsAsNotification", 0);
+		nValue = 0;
+	}
+	_log.ForwardErrorsToNotificationSystem(nValue != 0);
+
 	//Start background thread
 	if (!StartThread())
 		return false;
@@ -2491,13 +2505,12 @@ void CSQLHelper::Do_Work()
 
 	while (!m_stoprequested)
 	{
-		//sleep 1 second
-		sleep_seconds(1);
+		sleep_milliseconds(static_cast<const long>(1000.0f/timer_resolution_hz));
 
 		if (m_bAcceptHardwareTimerActive)
 		{
-			m_iAcceptHardwareTimerCounter--;
-			if (m_iAcceptHardwareTimerCounter <= 0)
+			m_iAcceptHardwareTimerCounter -= static_cast<float>(1./timer_resolution_hz);
+			if (m_iAcceptHardwareTimerCounter <= (1.0f/timer_resolution_hz/2))
 			{
 				m_bAcceptHardwareTimerActive = false;
 				m_bAcceptNewHardware = m_bPreviousAcceptNewHardware;
@@ -2509,26 +2522,30 @@ void CSQLHelper::Do_Work()
 			}
 		}
 
-		if (m_background_task_queue.size()>0)
-		{
-			_items2do.clear();
+		{ // additional scope for lock (accessing size should be within lock too)
 			boost::lock_guard<boost::mutex> l(m_background_task_mutex);
-
-			std::vector<_tTaskItem>::iterator itt=m_background_task_queue.begin();
-			while (itt!=m_background_task_queue.end())
+			if (m_background_task_queue.size()>0)
 			{
-				itt->_DelayTime--;
-				if (itt->_DelayTime<=0)
+				_items2do.clear();
+
+				std::vector<_tTaskItem>::iterator itt=m_background_task_queue.begin();
+				while (itt!=m_background_task_queue.end())
 				{
-					_items2do.push_back(*itt);
-					itt=m_background_task_queue.erase(itt);
+					itt->_DelayTime -= static_cast<float>(1./timer_resolution_hz);
+					if (itt->_DelayTime<=(1./timer_resolution_hz/2))
+					{
+						_items2do.push_back(*itt);
+						itt=m_background_task_queue.erase(itt);
+					}
+					else
+						++itt;
 				}
-				else
-					++itt;
 			}
 		}
-		if (_items2do.size()<1)
+
+		if (_items2do.size() < 1) {
 			continue;
+		}
 
 		std::vector<_tTaskItem>::iterator itt=_items2do.begin();
 		while (itt!=_items2do.end())
@@ -2694,6 +2711,14 @@ void CSQLHelper::Do_Work()
 				{
 					_log.Log(LOG_ERROR, "Variable not found!");
 				}
+			}
+			else if (itt->_ItemType == TITEM_SEND_NOTIFICATION)
+			{
+				std::vector<std::string> splitresults;
+				StringSplit(itt->_command, "!#", splitresults);
+				if (splitresults.size() != 4)
+					continue; //impossible
+				m_notifications.SendMessageEx(NOTIFYALL, splitresults[0], splitresults[1], splitresults[2], static_cast<int>(itt->_idx), splitresults[3], true);
 			}
 
 			++itt;
@@ -3109,7 +3134,7 @@ unsigned long long CSQLHelper::UpdateValueInt(const int HardwareID, const char* 
 	bool bDeviceUsed = false;
 	bool bSameDeviceStatusValue = false;
 	std::vector<std::vector<std::string> > result;
-	result = safe_query("SELECT ID,Name, Used, SwitchType, nValue, sValue FROM DeviceStatus WHERE (HardwareID=%d AND DeviceID='%q' AND Unit=%d AND Type=%d AND SubType=%d)",HardwareID, ID, unit, devType, subType);
+	result = safe_query("SELECT ID,Name, Used, SwitchType, nValue, sValue, LastUpdate, Options FROM DeviceStatus WHERE (HardwareID=%d AND DeviceID='%q' AND Unit=%d AND Type=%d AND SubType=%d)",HardwareID, ID, unit, devType, subType);
 	if (result.size()==0)
 	{
 		//Insert
@@ -3146,17 +3171,39 @@ unsigned long long CSQLHelper::UpdateValueInt(const int HardwareID, const char* 
 		//Update
 		std::stringstream s_str( result[0][0] );
 		s_str >> ulID;
-
+		std::string sOption=result[0][7];
 		devname=result[0][1];
 		bDeviceUsed= atoi(result[0][2].c_str())!=0;
 		_eSwitchType stype = (_eSwitchType)atoi(result[0][3].c_str());
 		int old_nValue = atoi(result[0][4].c_str());
 		std::string old_sValue = result[0][5];
-
 		time_t now = time(0);
 		struct tm ltime;
 		localtime_r(&now,&ltime);
-
+		//Commit: If Option 1: energy is computed as usage*time
+		//Default is option 0, read from device
+		if (sOption == "1" && devType == pTypeGeneral && subType == sTypeKwh)
+		{
+			std::vector<std::string> parts;
+			struct tm ntime;
+			double interval;
+			float nEnergy;
+			char sCompValue[100];
+			std::string sLastUpdate = result[0][6];
+			ntime.tm_isdst = ltime.tm_isdst;
+			ntime.tm_year = atoi(sLastUpdate.substr(0, 4).c_str()) - 1900;
+			ntime.tm_mon = atoi(sLastUpdate.substr(5, 2).c_str()) - 1;
+			ntime.tm_mday = atoi(sLastUpdate.substr(8, 2).c_str());
+			ntime.tm_hour = atoi(sLastUpdate.substr(11, 2).c_str());
+			ntime.tm_min = atoi(sLastUpdate.substr(14, 2).c_str());
+			ntime.tm_sec = atoi(sLastUpdate.substr(17, 2).c_str());
+			interval = static_cast<double>(now - mktime(&ntime)); //Rob: Why a double ?
+			StringSplit(result[0][5].c_str(), ";", parts);
+			nEnergy = static_cast<float>(strtof(parts[0].c_str(), NULL)*interval / 3600 + strtof(parts[1].c_str(), NULL)); //Rob: whats happening here... strtof ?
+			StringSplit(sValue, ";", parts);
+			sprintf(sCompValue, "%s;%.0f", parts[0].c_str(), nEnergy);
+			sValue = sCompValue;
+		}
         //~ use different update queries based on the device type
         if (devType == pTypeGeneral && subType == sTypeCounterIncremental)
         {
@@ -3259,7 +3306,7 @@ unsigned long long CSQLHelper::UpdateValueInt(const int HardwareID, const char* 
 			std::vector<std::string> sd=result[0];
 			std::string Name=sd[0];
 			_eSwitchType switchtype=(_eSwitchType)atoi(sd[1].c_str());
-			int AddjValue=(int)atof(sd[2].c_str());
+			float AddjValue = static_cast<float>(atof(sd[2].c_str()));
 			GetLightStatus(devType, subType, switchtype,nValue, sValue, lstatus, llevel, bHaveDimmer, maxDimLevel, bHaveGroupCmd);
 
 			bool bIsLightSwitchOn=IsLightSwitchOn(lstatus);
@@ -3317,7 +3364,7 @@ unsigned long long CSQLHelper::UpdateValueInt(const int HardwareID, const char* 
 						{
 							std::vector<std::string> sd=*ittCam;
 							std::string camidx=sd[0];
-							int delay=atoi(sd[1].c_str());
+							float delay= static_cast<float>(atof(sd[1].c_str()));
 							std::string subject=Name + " Status: " + lstatus;
 							AddTaskItem(_tTaskItem::EmailCameraSnapshot(delay+1,camidx,subject));
 						}
@@ -3363,7 +3410,7 @@ unsigned long long CSQLHelper::UpdateValueInt(const int HardwareID, const char* 
 			}
 			if (bIsLightSwitchOn)
 			{
-				if (AddjValue!=0) //Off Delay
+				if ((int)AddjValue!=0) //Off Delay
 				{
 					bool bAdd2DelayQueue=false;
 					int cmd=0;
@@ -4140,7 +4187,7 @@ void CSQLHelper::UpdateUVLog()
 	GetPreferencesVar("SensorTimeout", SensorTimeOut);
 
 	std::vector<std::vector<std::string> > result;
-	result=safe_query("SELECT ID,Type,SubType,nValue,sValue,LastUpdate FROM DeviceStatus WHERE (Type=%d) OR (Type=%d AND SubType=%d)", 
+	result=safe_query("SELECT ID,Type,SubType,nValue,sValue,LastUpdate FROM DeviceStatus WHERE (Type=%d) OR (Type=%d AND SubType=%d)",
 		pTypeUV,
 		pTypeGeneral, sTypeUV
 	);
@@ -4762,7 +4809,7 @@ void CSQLHelper::AddCalendarTemperature()
 		std::stringstream s_str( sddev[0] );
 		s_str >> ID;
 
-		result=safe_query("SELECT MIN(Temperature), MAX(Temperature), AVG(Temperature), MIN(Chill), MAX(Chill), MAX(Humidity), MAX(Barometer), MIN(DewPoint), MIN(SetPoint), MAX(SetPoint), AVG(SetPoint) FROM Temperature WHERE (DeviceRowID='%llu' AND Date>='%q' AND Date<'%q')",
+		result=safe_query("SELECT MIN(Temperature), MAX(Temperature), AVG(Temperature), MIN(Chill), MAX(Chill), AVG(Humidity), AVG(Barometer), MIN(DewPoint), MIN(SetPoint), MAX(SetPoint), AVG(SetPoint) FROM Temperature WHERE (DeviceRowID='%llu' AND Date>='%q' AND Date<'%q')",
 			ID,
 			szDateStart,
 			szDateEnd
@@ -6071,8 +6118,8 @@ void CSQLHelper::AddTaskItem(const _tTaskItem &tItem)
 			// _log.Log(LOG_NORM, "Comparing with item in queue: idx=%llu, DelayTime=%d, Command='%s', Level=%d, Hue=%d, RelatedEvent='%s'", itt->_idx, itt->_DelayTime, itt->_command.c_str(), itt->_level, itt->_Hue, itt->_relatedEvent.c_str());
 			if (itt->_idx == tItem._idx && itt->_ItemType == tItem._ItemType)
 			{
-				int iDelayDiff = tItem._DelayTime - itt->_DelayTime;
-				if (iDelayDiff < 3)
+				float iDelayDiff = tItem._DelayTime - itt->_DelayTime;
+				if (iDelayDiff < (1./timer_resolution_hz/2))
 				{
 					// _log.Log(LOG_NORM, "=> Already present. Cancelling previous task item");
 					itt = m_background_task_queue.erase(itt);
@@ -7019,7 +7066,7 @@ bool CSQLHelper::CheckTime(const std::string &sTime)
 
 void CSQLHelper::AllowNewHardwareTimer(const int iTotMinutes)
 {
-	m_iAcceptHardwareTimerCounter = iTotMinutes * 60;
+	m_iAcceptHardwareTimerCounter = iTotMinutes * 60.0f;
 	if (m_bAcceptHardwareTimerActive == false)
 	{
 		m_bPreviousAcceptNewHardware = m_bAcceptNewHardware;
@@ -7297,7 +7344,7 @@ std::map<std::string, std::string> CSQLHelper::GetDeviceOptions(const std::strin
 }
 
 bool CSQLHelper::SetDeviceOptions(const unsigned long long idx, const std::map<std::string, std::string> & optionsMap) {
-	if (idx < 0) {
+	if (idx < 1) {
 		_log.Log(LOG_ERROR, "Cannot set options on device %llu", idx);
 		return false;
 	}
@@ -7334,4 +7381,3 @@ bool CSQLHelper::SetDeviceOptions(const unsigned long long idx, const std::map<s
 	}
 	return true;
 }
-
